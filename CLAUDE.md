@@ -78,13 +78,17 @@ Non-negotiables:
 - **Dice are injectable.** Randomness is a dependency, never a hidden global — so
   tests are deterministic and games are reproducible. `Dice` is passed in / seedable.
 - **Exhaustive tests** on move generation and bearing off before any AI work.
-- `GameState` is serializable, and its serialized form is the project's shared currency.
-  One JSON encoding underpins four things: the API wire format, **save/load** (persist a
-  game, reload it, keep playing), the **stateless best-move endpoint** (`POST /engine/move`,
-  below), and the **engine benchmark harness** (below). Design for this from the start —
-  keep the engine interface a pure function over serialized state so all of these fall out
-  for free. The rules/engine layer must never depend on any single consumer's format (see
-  the gnubg note): our `GameState` JSON stays canonical everywhere.
+- `GameState` is serializable (it crosses the API and seeds the AI).
+
+### Serialization is the shared currency
+
+One `GameState` JSON encoding underpins four things: the API wire format, **save/load**
+(persist a game, reload it, keep playing), the **stateless best-move endpoint**
+(`POST /engine/move`, see API contract), and the **engine benchmark harness** (see Core
+architectural principle). Design for this from the start — keep the engine interface a
+pure function over serialized state so all four fall out for free. The rules/engine layer
+must never depend on any single consumer's format (see the gnubg note in API contract):
+our `GameState` JSON stays canonical everywhere.
 
 ### v1 rules scope
 In: single game, standard start, all movement, hitting/bar, bearing off, win
@@ -103,10 +107,35 @@ post-1.0 (see Future ideas) — do not add them.
   occupied point bears off from the highest point (overage), but only once no checkers
   sit on higher points.
 
+Consider differential-testing move generation against `gym-backgammon` on random positions
+before calling M1 done — see Prior art & references, just below.
+
 ### Board representation
 Store the 24 points + bar + off **absolutely**; expose player-relative views as helpers
 for UI and AI. Pick one encoding (signed counts, or two per-player arrays), document it
 in `state.py`, and never mix. Pip count is a derived helper used by tests and `heuristic`.
+
+---
+
+## Prior art & references
+
+Pointers, not dependencies — we build our own pure rules engine, but these inform it:
+
+- **`gym-backgammon`** (dellalibera) — the de-facto Python rules substrate; most ML
+  backgammon repos borrow it instead of writing rules. Use it as a **differential-test
+  oracle**: on random positions, assert our legal-move set matches theirs. Its move-gen
+  confirms our model (moves as `(source, target)` tuples; must use the most dice possible).
+- **198-feature TD-Gammon encoding** — the settled standard input for the neural engine
+  (per point: `[0,0,0,0]` empty, `[1,0,0,0]` one, `[1,1,1,(n-3)/2]` for 3+; ×24 ×2 players
+  + bar/off + turn = 198). Enhanced variants add hand-crafted features (~250-dim). Start
+  here; our own encodings are a later experiment.
+- **gnubg / `gnubg-hints`** — GNU Backgammon is our strong reference; the nodots project
+  shows the wrap-gnubg-behind-a-provider pattern we're using works in practice.
+- **Rules edge cases** — [bkgm.com rules FAQ](https://bkgm.com/rules/rul-faq.html) and
+  gnubg source are the authorities for the forced-larger-die and bear-off-overage cases.
+
+Most hobby repos in this space ship **no rules test suite** — our exhaustive-tests-first
+stance is the main thing that sets this foundation apart. Don't drop it.
 
 ---
 
@@ -122,8 +151,11 @@ in `state.py`, and never mix. Pip count is a derived helper used by tests and `h
     │   ├── ai/               # engines, all implementing the same interface
     │   │   ├── base.py       # Engine protocol / ABC
     │   │   ├── random_engine.py
-    │   │   └── registry.py   # name -> engine, powers the UI dropdown
+    │   │   ├── gnubg_engine.py  # subprocess adapter; Position ID stays contained here
+    │   │   ├── registry.py   # name -> engine, powers the UI dropdown
+    │   │   └── benchmark.py  # harness: (engine_id, params) round-robin, win rates
     │   ├── routers/
+    │   │   └── engine.py     # POST /engine/move — stateless best-move endpoint
     │   ├── models/           # Pydantic request/response bodies
     │   └── tests/
     ├── frontend/             # React + Vite + TypeScript
@@ -191,7 +223,7 @@ The numbered milestones drive toward a **1.0** release. Everything past that is 
 | M2 | Playable UI vs random | future | Full board, click-to-move, play a full game vs `random` engine |
 | M3 | Heuristic engine | future | `heuristic` engine + working UI selector |
 | M4 | Expectiminimax + rollouts | future | `expectiminimax` engine, benchmarked vs heuristic |
-| M5 | Neural / gnubg | future | Strong engine(s) plugged in |
+| M5 | Neural engine | future | TD-Gammon-style self-play engine, benchmarked vs expectiminimax and (if wired up by now) `gnubg` |
 
 That's 1.0.
 
@@ -233,28 +265,6 @@ history log in standard notation (e.g. `31: 8/5 6/5`).
 - Every session leaves the repo in a working state
 - Never call an unseeded global RNG — thread the seed through everything that rolls
 - Comments explain *why*, not *what*
-
----
-
-## Prior art & references
-
-Pointers, not dependencies — we build our own pure rules engine, but these inform it:
-
-- **`gym-backgammon`** (dellalibera) — the de-facto Python rules substrate; most ML
-  backgammon repos borrow it instead of writing rules. Use it as a **differential-test
-  oracle**: on random positions, assert our legal-move set matches theirs. Its move-gen
-  confirms our model (moves as `(source, target)` tuples; must use the most dice possible).
-- **198-feature TD-Gammon encoding** — the settled standard input for the neural engine
-  (per point: `[0,0,0,0]` empty, `[1,0,0,0]` one, `[1,1,1,(n-3)/2]` for 3+; ×24 ×2 players
-  + bar/off + turn = 198). Enhanced variants add hand-crafted features (~250-dim). Start
-  here; our own encodings are a later experiment.
-- **gnubg / `gnubg-hints`** — GNU Backgammon is our strong reference; the nodots project
-  shows the wrap-gnubg-behind-a-provider pattern we're using works in practice.
-- **Rules edge cases** — [bkgm.com rules FAQ](https://bkgm.com/rules/rul-faq.html) and
-  gnubg source are the authorities for the forced-larger-die and bear-off-overage cases.
-
-Most hobby repos in this space ship **no rules test suite** — our exhaustive-tests-first
-stance is the main thing that sets this foundation apart. Don't drop it.
 
 ---
 

@@ -22,21 +22,47 @@ stronger engines are plugged in underneath without the frontend changing.
 The single most important design rule. There is ONE engine interface:
 
     choose_move(state: GameState, dice: Dice) -> Move
-    # (plus offer/accept for the doubling cube later — not in M1)
+    # (plus offer/accept for the doubling cube post-1.0 — see Future ideas)
 
 Every AI is an implementation of it. The UI has a dropdown that names the active
 engine; the API takes an optional `engine` query param (default = weakest available).
 Adding a new engine must never require touching the frontend or the rules engine.
 
-Planned engine ladder (build in order, all selectable once built):
+Planned engine ladder (rough order of increasing strength — a guide, not a rigid gate;
+we implement as we see fit):
 1. `random`        — legal random move. The baseline / test opponent.
 2. `heuristic`     — hand-tuned eval (pip count, blots, primes) + 1-ply expectiminimax.
 3. `expectiminimax`— deeper search over dice chance nodes + Monte Carlo rollouts.
 4. `neural`        — TD-Gammon-style self-play network (research milestone).
 5. `gnubg`         — wrap GNU Backgammon as a strong reference / benchmark.
 
-Each engine must **measurably beat the one below it** over N games. That head-to-head
-win rate is the AI's test suite — a new engine isn't done until it clears the bar.
+Head-to-head win rate over N games is how we judge an engine — it's the AI's real test
+suite. Use it to justify that a new engine is stronger, but it is **not** a hard pass/fail
+bar and engines need not be built in strict ladder order.
+
+`gnubg` is a fixed *reference* point, not really a rung on the ladder: it wraps an existing
+binary rather than building something new, so bring it in whenever it's useful to benchmark
+against (e.g. as soon as `heuristic` exists) rather than treating it as strictly last. Note
+it is heavier than the other engines — needs the external binary installed and subprocess
+plumbing — so weigh that cost when deciding when to wire it up. See the gnubg note under
+the API section for how its format stays contained.
+
+### Benchmark harness (set up once, use a thousand times)
+
+A developer-facing harness pits engines against each other over N games and reports win
+rates — plus a nice summary graphic. Build it once, early, as reusable framework; it's how
+we justify that each new engine is actually stronger.
+
+- A competitor is an `(engine_id, params)` pair, not just a name — so the *same* engine at
+  different settings competes as distinct entrants (e.g. `expectiminimax` at depth 2 vs
+  depth 3 vs depth 4, all against each other and against `random`, `gnubg`, etc.). Run them
+  round-robin.
+- Parameters are **developer-configured only** — this is our tuning tool, not a user
+  feature. The UI dropdown / `registry.py` stays a small curated set of shipped engines a
+  human would want to play; the harness can instantiate any `(engine_id, params)` pair,
+  including ones that never appear in the dropdown.
+- The harness drives games through the stateless `POST /engine/move` endpoint (above) — no
+  per-game session overhead.
 
 ---
 
@@ -50,13 +76,19 @@ Non-negotiables:
 - **Dice are injectable.** Randomness is a dependency, never a hidden global — so
   tests are deterministic and games are reproducible. `Dice` is passed in / seedable.
 - **Exhaustive tests** on move generation and bearing off before any AI work.
-- `GameState` is serializable (it crosses the API and seeds the AI).
+- `GameState` is serializable, and its serialized form is the project's shared currency.
+  One JSON encoding underpins four things: the API wire format, **save/load** (persist a
+  game, reload it, keep playing), the **stateless best-move endpoint** (`POST /engine/move`,
+  below), and the **engine benchmark harness** (below). Design for this from the start —
+  keep the engine interface a pure function over serialized state so all of these fall out
+  for free. The rules/engine layer must never depend on any single consumer's format (see
+  the gnubg note): our `GameState` JSON stays canonical everywhere.
 
 ### v1 rules scope
 In: single game, standard start, all movement, hitting/bar, bearing off, win
 detection, and **gammon (2x) / backgammon (3x)** scoring.
-Out until M5: the doubling cube, match play, Crawford, match equity. Do not add
-them early.
+Out of v1.0 entirely: the doubling cube, match play, Crawford, match equity. These are
+post-1.0 (see Future ideas) — do not add them.
 
 ### Move-generation rules that are easy to get wrong
 - Generate **full turn sequences** (the legal combinations of both dice), not single-die
@@ -108,7 +140,7 @@ in `state.py`, and never mix. Pip count is a derived helper used by tests and `h
 | Rules engine | Pure Python | No framework deps, heavily tested |
 | Frontend | React + Vite + TypeScript | |
 | Styling | Tailwind CSS | Utility-first, no component lib without discussing |
-| Board render | SVG (start) | Simple, testable; revisit canvas if perf needs it |
+| Board render | SVG (start) | Try both a sourced open-license board and a hand-built one, compare, keep the winner; revisit canvas if perf needs it |
 | Dev infra | Docker Compose | api + frontend |
 
 ---
@@ -120,6 +152,7 @@ in `state.py`, and never mix. Pip count is a derived helper used by tests and `h
     POST /game/{id}/move  -> { state, legal_moves }        # human move
     POST /game/{id}/ai    ?engine=random -> { move, state } # ask AI to move
     GET  /engines         -> [ { id, label, available } ]   # powers UI dropdown
+    POST /engine/move     -> { move }                       # stateless: no game_id
 
 `engine` is an optional param defaulting to the weakest available engine. Adding
 engines is additive and backwards-compatible — the frontend never needs updating.
@@ -127,12 +160,28 @@ engines is additive and backwards-compatible — the frontend never needs updati
 The server holds game state keyed by `game_id` and is authoritative for legality —
 the frontend renders and collects intent, it never decides what's legal.
 
-The one additive change reserved for M5: cube fields on `state` plus offer/take/drop
-endpoints. Additive only — v1 clients keep working.
+**Stateless best-move endpoint.** `POST /engine/move` takes `{ state, dice, engine }` and
+returns `{ move }` — a pure function over a serialized position, no game session involved.
+It's part of the harness/framework, designed in from the start, not bolted on: it's what
+save/load, position analysis, and the engine benchmark all call underneath. (The endpoint
+itself first ships with the API in M2 since M1 is a pure lib with no I/O — but the M1 engine
+interface must already be a pure, stateless-friendly function so this stays a thin wrapper.)
+
+**gnubg format stays contained.** GNU Backgammon speaks its own compact board encoding
+(Position ID / Match ID) over a subprocess/`hint` interface. All of that translation lives
+*inside* the `gnubg` engine adapter — it converts our `GameState` → Position ID right before
+shelling out and the reply back to a `Move` right after. Nothing outside that adapter ever
+sees a Position ID; our `GameState` JSON remains the one canonical format.
+
+Post-1.0 additive change: cube fields on `state` plus offer/take/drop endpoints. Additive
+only — v1 clients keep working.
 
 ---
 
-## Milestones
+## Milestones (v1.0)
+
+The numbered milestones drive toward a **1.0** release. Everything past that is post-1.0
+(see Future ideas) and is not committed to a slot.
 
 | # | Name | Status | Deliverable |
 |---|---|---|---|
@@ -140,8 +189,18 @@ endpoints. Additive only — v1 clients keep working.
 | M2 | Playable UI vs random | future | Full board, click-to-move, play a full game vs `random` engine |
 | M3 | Heuristic engine | future | `heuristic` engine + working UI selector |
 | M4 | Expectiminimax + rollouts | future | `expectiminimax` engine, benchmarked vs heuristic |
-| M5 | Doubling cube | future | Cube rules in engine + AI cube decisions |
-| M6 | Neural / gnubg | future | Strong engine(s) plugged in |
+| M5 | Neural / gnubg | future | Strong engine(s) plugged in |
+
+That's 1.0.
+
+## Future ideas (post-1.0)
+
+Uncommitted, not scheduled — captured so we don't lose them.
+
+- **1.1 — Doubling cube.** Cube rules in the engine + AI cube decisions (offer/take/drop).
+  Additive to the API (cube fields on `state`, new endpoints); v1.0 clients keep working.
+- **Persian rules variant.** Backgammon as played without the doubling cube (per Simon's
+  culture) — a rules variant behind the same engine interface.
 
 ---
 
@@ -180,6 +239,6 @@ history log in standard notation (e.g. `31: 8/5 6/5`).
 - Do not bake AI/product logic into the rules engine — keep it pure
 - Do not add engines that bypass the `choose_move` interface
 - Do not change the API response shapes — they are the contract
-- Do not build the doubling cube until M5
+- Do not build the doubling cube in v1.0 — it's post-1.0 (1.1)
 - Do not add ML tooling (PyTorch/NumPy) before the neural milestone
 - Do not add a component library without discussing first

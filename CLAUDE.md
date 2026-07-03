@@ -33,7 +33,9 @@ we implement as we see fit):
 1. `random`        — legal random move. The baseline / test opponent.
 2. `heuristic`     — hand-tuned eval (pip count, blots, primes) + 1-ply expectiminimax.
 3. `expectiminimax`— deeper search over dice chance nodes + Monte Carlo rollouts.
-4. `neural`        — TD-Gammon-style self-play network (research milestone).
+4. `neural`        — TD-Gammon-style self-play network (research milestone). Start from the
+                     standard 198-feature TD-Gammon encoding (see Prior art); custom
+                     encodings are a later experiment, not a starting point.
 5. `gnubg`         — wrap GNU Backgammon as a strong reference / benchmark.
 
 Head-to-head win rate over N games is how we judge an engine — it's the AI's real test
@@ -231,6 +233,28 @@ history log in standard notation (e.g. `31: 8/5 6/5`).
 - Every session leaves the repo in a working state
 - Never call an unseeded global RNG — thread the seed through everything that rolls
 - Comments explain *why*, not *what*
+
+---
+
+## Prior art & references
+
+Pointers, not dependencies — we build our own pure rules engine, but these inform it:
+
+- **`gym-backgammon`** (dellalibera) — the de-facto Python rules substrate; most ML
+  backgammon repos borrow it instead of writing rules. Use it as a **differential-test
+  oracle**: on random positions, assert our legal-move set matches theirs. Its move-gen
+  confirms our model (moves as `(source, target)` tuples; must use the most dice possible).
+- **198-feature TD-Gammon encoding** — the settled standard input for the neural engine
+  (per point: `[0,0,0,0]` empty, `[1,0,0,0]` one, `[1,1,1,(n-3)/2]` for 3+; ×24 ×2 players
+  + bar/off + turn = 198). Enhanced variants add hand-crafted features (~250-dim). Start
+  here; our own encodings are a later experiment.
+- **gnubg / `gnubg-hints`** — GNU Backgammon is our strong reference; the nodots project
+  shows the wrap-gnubg-behind-a-provider pattern we're using works in practice.
+- **Rules edge cases** — [bkgm.com rules FAQ](https://bkgm.com/rules/rul-faq.html) and
+  gnubg source are the authorities for the forced-larger-die and bear-off-overage cases.
+
+Most hobby repos in this space ship **no rules test suite** — our exhaustive-tests-first
+stance is the main thing that sets this foundation apart. Don't drop it.
 
 ---
 

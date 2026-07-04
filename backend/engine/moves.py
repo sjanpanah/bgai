@@ -8,6 +8,7 @@ on top of `legal_single_die_moves`.
 
 from __future__ import annotations
 
+from engine.rules import legal_bear_off_moves
 from engine.state import BAR, OFF, PLAYER_0, PLAYER_1, GameState, Move
 
 
@@ -42,6 +43,7 @@ def legal_single_die_moves(state: GameState, player: int, die: int) -> list[Move
         target = source + direction * die
         if 0 <= target <= 23 and not is_blocked(state, player, target):
             moves.append(Move(source, target))
+    moves.extend(legal_bear_off_moves(state, player, die))
     return moves
 
 

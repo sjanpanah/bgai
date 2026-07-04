@@ -1,0 +1,22 @@
+[project]
+name = "bgai-backend"
+version = "0.1.0"
+description = "Backgammon vs AI — backend"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["engine*", "ai*", "routers*", "models*"]

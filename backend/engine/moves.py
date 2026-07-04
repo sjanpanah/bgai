@@ -9,7 +9,7 @@ on top of `legal_single_die_moves`.
 from __future__ import annotations
 
 from engine.rules import distance_to_off, legal_bear_off_moves
-from engine.state import BAR, OFF, PLAYER_0, PLAYER_1, GameState, Move
+from engine.state import BAR, OFF, PLAYER_0, GameState, Move
 
 
 def is_blocked(state: GameState, player: int, point: int) -> bool:

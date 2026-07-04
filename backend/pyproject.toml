@@ -7,6 +7,9 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6"]
+# oracle for differential-testing move generation (see tests/test_differential_gym_backgammon.py);
+# pyglet is only needed transitively so gym_backgammon's package __init__ chain imports cleanly
+differential = ["gym-backgammon", "pyglet"]
 
 [tool.ruff]
 line-length = 100

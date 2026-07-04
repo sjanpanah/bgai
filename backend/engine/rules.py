@@ -8,7 +8,7 @@ detection (single / gammon / backgammon).
 
 from __future__ import annotations
 
-from engine.state import OFF, PLAYER_0, PLAYER_1, GameState, Move
+from engine.state import OFF, PLAYER_0, GameState, Move
 
 HOME_RANGE_PLAYER_0 = range(0, 6)
 HOME_RANGE_PLAYER_1 = range(18, 24)

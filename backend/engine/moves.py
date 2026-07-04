@@ -8,7 +8,7 @@ on top of `legal_single_die_moves`.
 
 from __future__ import annotations
 
-from engine.state import BAR, PLAYER_0, PLAYER_1, GameState, Move
+from engine.state import BAR, OFF, PLAYER_0, PLAYER_1, GameState, Move
 
 
 def is_blocked(state: GameState, player: int, point: int) -> bool:
@@ -43,3 +43,34 @@ def legal_single_die_moves(state: GameState, player: int, die: int) -> list[Move
         if 0 <= target <= 23 and not is_blocked(state, player, target):
             moves.append(Move(source, target))
     return moves
+
+
+def apply_move(state: GameState, player: int, move: Move) -> GameState:
+    """Return a new GameState with `move` applied for `player`, hitting any blot."""
+    new_state = state.copy()
+
+    if move.source == BAR:
+        new_state.bar[player] -= 1
+    elif player == PLAYER_0:
+        new_state.board[move.source] -= 1
+    else:
+        new_state.board[move.source] += 1
+
+    if move.target == OFF:
+        new_state.off[player] += 1
+        return new_state
+
+    opponent = 1 - player
+    target_count = new_state.board[move.target]
+    if player == PLAYER_0:
+        if target_count == -1:
+            new_state.bar[opponent] += 1
+            target_count = 0
+        new_state.board[move.target] = target_count + 1
+    else:
+        if target_count == 1:
+            new_state.bar[opponent] += 1
+            target_count = 0
+        new_state.board[move.target] = target_count - 1
+
+    return new_state

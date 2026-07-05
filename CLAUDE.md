@@ -220,8 +220,8 @@ The numbered milestones drive toward a **1.0** release. Everything past that is 
 | # | Name | Status | Deliverable |
 |---|---|---|---|
 | M1 | Rules engine | done | Pure lib: legal moves, hitting, bearing off, win — fully tested, no UI |
-| M2 | Playable UI vs random | next | Full board, click-to-move, play a full game vs `random` engine |
-| M3 | Heuristic engine | future | `heuristic` engine + working UI selector |
+| M2 | Playable UI vs random | done | Full board, click-to-move, play a full game vs `random` engine |
+| M3 | Heuristic engine | next | `heuristic` engine + working UI selector |
 | M4 | Expectiminimax + rollouts | future | `expectiminimax` engine, benchmarked vs heuristic |
 | M5 | Neural engine | future | TD-Gammon-style self-play engine, benchmarked vs expectiminimax and (if wired up by now) `gnubg` |
 

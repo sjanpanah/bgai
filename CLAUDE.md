@@ -63,8 +63,19 @@ we justify that each new engine is actually stronger.
   feature. The UI dropdown / `registry.py` stays a small curated set of shipped engines a
   human would want to play; the harness can instantiate any `(engine_id, params)` pair,
   including ones that never appear in the dropdown.
-- The harness drives games through the stateless `POST /engine/move` endpoint (above) — no
-  per-game session overhead.
+- The harness owns `GameState` itself and calls `choose_move` directly, in-process — the
+  same stateless, serialized-position design `POST /engine/move` is built on (above), just a
+  direct function call instead of a simulated HTTP round trip. No per-game session overhead
+  either way.
+- **Self-play noise floor (learned tuning `heuristic`'s weights for M3):** round-robin between
+  two similarly-tuned variants of the *same* engine is a noisy signal — dice variance swamps
+  small weight differences. Sweeping `heuristic`'s pip/blot/prime weights against each other
+  flipped which config "won" depending on the seed alone, even at 100 games/matchup. The one
+  robust, unambiguous result was structural (dropping blot/prime terms entirely tanks win rate
+  to ~3%), not a fine weight value. Don't trust a small round-robin to rank two close
+  competitors — either run far more games than feels reasonable, or benchmark against a fixed
+  *stronger* reference (`gnubg`, or a higher-rung engine) where a real skill gap clears the
+  noise floor.
 
 ---
 

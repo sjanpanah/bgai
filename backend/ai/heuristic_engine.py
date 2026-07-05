@@ -6,12 +6,15 @@ search into the opponent's reply. Deeper lookahead is `expectiminimax`'s job.
 
 from __future__ import annotations
 
-from ai.heuristic import evaluate
+from ai.heuristic import DEFAULT_WEIGHTS, Weights, evaluate
 from engine.moves import apply_turn
 from engine.state import GameState, Move
 
 
 class HeuristicEngine:
+    def __init__(self, weights: Weights = DEFAULT_WEIGHTS) -> None:
+        self.weights = weights
+
     def choose_move(
         self,
         state: GameState,
@@ -21,5 +24,7 @@ class HeuristicEngine:
         player = state.turn
         return max(
             legal_sequences,
-            key=lambda sequence: evaluate(apply_turn(state, player, sequence), player),
+            key=lambda sequence: evaluate(
+                apply_turn(state, player, sequence), player, self.weights
+            ),
         )

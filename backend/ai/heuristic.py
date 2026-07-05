@@ -6,11 +6,19 @@ from `player`'s perspective — higher is better for `player`.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from engine.state import PLAYER_0, GameState
 
-PIP_WEIGHT = 1.0
-BLOT_WEIGHT = 4.0
-PRIME_WEIGHT = 2.0
+
+@dataclass(frozen=True)
+class Weights:
+    pip: float = 1.0
+    blot: float = 4.0
+    prime: float = 2.0
+
+
+DEFAULT_WEIGHTS = Weights()
 
 
 def _owns(count: int, player: int) -> bool:
@@ -37,9 +45,9 @@ def prime_bonus(state: GameState, player: int) -> float:
     return bonus
 
 
-def evaluate(state: GameState, player: int) -> float:
+def evaluate(state: GameState, player: int, weights: Weights = DEFAULT_WEIGHTS) -> float:
     opponent = 1 - player
-    score = PIP_WEIGHT * (state.pip_count(opponent) - state.pip_count(player))
-    score -= BLOT_WEIGHT * count_blots(state, player)
-    score += PRIME_WEIGHT * prime_bonus(state, player)
+    score = weights.pip * (state.pip_count(opponent) - state.pip_count(player))
+    score -= weights.blot * count_blots(state, player)
+    score += weights.prime * prime_bonus(state, player)
     return score

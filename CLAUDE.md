@@ -235,6 +235,8 @@ Uncommitted, not scheduled — captured so we don't lose them.
   Additive to the API (cube fields on `state`, new endpoints); v1.0 clients keep working.
 - **Persian rules variant.** Backgammon as played without the doubling cube (per Simon's
   culture) — a rules variant behind the same engine interface.
+- **Nicer board asset.** M2 ships a hand-built SVG board only. Revisit in a later milestone:
+  source an open-license SVG board, compare against the hand-built one, keep the winner.
 
 ---
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ai.base import Engine
+from ai.heuristic_engine import HeuristicEngine
 from ai.random_engine import RandomEngine
 
 DEFAULT_ENGINE_ID = "random"
@@ -24,6 +25,7 @@ class EngineEntry:
 
 _ENGINES: dict[str, EngineEntry] = {
     "random": EngineEntry(id="random", label="Random", engine=RandomEngine()),
+    "heuristic": EngineEntry(id="heuristic", label="Heuristic", engine=HeuristicEngine()),
 }
 
 

@@ -76,6 +76,14 @@ we justify that each new engine is actually stronger.
   competitors — either run far more games than feels reasonable, or benchmark against a fixed
   *stronger* reference (`gnubg`, or a higher-rung engine) where a real skill gap clears the
   noise floor.
+- **`expectiminimax` depth cost (M4):** `depth=1, candidates=8` (the registry default) plays a
+  full game in ~1.6s and beat `heuristic` 13/20 (65%) head-to-head, both crushing `random`
+  20/20 — a real, un-noisy skill gap, unlike the M3 same-engine sweeps. `depth=2` is a
+  different story: even pruned to `candidates=2`, one full game took ~43s (a single opening
+  move at `candidates=6` alone took ~15s) — full expansion of 21 dice rolls at every ply,
+  every ply, is the bottleneck, not the candidate cap. Don't round-robin `depth=2` at a normal
+  `games_per_matchup` without first speeding up the search (transposition tables, tighter
+  pruning, or a compiled hot path) — a 20-game matchup would take on the order of 15 minutes.
 
 ---
 
@@ -147,6 +155,40 @@ Pointers, not dependencies — we build our own pure rules engine, but these inf
 
 Most hobby repos in this space ship **no rules test suite** — our exhaustive-tests-first
 stance is the main thing that sets this foundation apart. Don't drop it.
+
+### Classical (non-neural) backgammon AI — informs `heuristic` and `expectiminimax`
+
+- **[Hakim (2025), alpha-beta pruned expectiminimax for backgammon](https://informatika.stei.itb.ac.id/~rinaldi.munir/Stmik/2024-2025/Makalah2025/Makalah-IF2211-Strategi-Algoritma-2025%20(94).pdf)**
+  — validates our M4 architecture directly: expectiminimax over the same 21 weighted dice
+  outcomes, on top of a pip/blot/blockade eval shaped just like ours. Depth-2 search beat a
+  1-ply "greedy" baseline 56.4% (p=0.002) *using an identical, untuned eval both sides* —
+  search depth alone was the source of the gain. Supports building `expectiminimax` before
+  retuning `heuristic`'s weights, not after. Their alpha-beta pseudocode prunes chance nodes
+  without a bounded eval range (needed for that to be sound, e.g. star1/star2) — don't copy
+  that part; prefer candidate-count pruning (top-K by static eval) at chance/decision nodes
+  instead, which sidesteps the correctness trap entirely.
+- **[Berliner's BKG 9.8](https://bkgm.com/articles/Berliner/ExperiencesInEvaluationWithBKG/)**
+  (1979, first program to beat a world champion at any game) — hand-tuned polynomial eval,
+  same shape as ours, but blends separate phase-specific evaluators (contact / race /
+  bearoff) to avoid sharp discontinuities at phase transitions. Our `evaluate()` applies one
+  fixed weight set for the whole game — a known, unaddressed gap, not yet worth blocking M4
+  on.
+- **[Shot counting](https://bkgm.com/books/JacobyCrawford/BasicProbability/)** — real
+  strategy weighs a blot by its exact hit probability from the 21 dice outcomes (a blot 6
+  pips out faces ~47% odds, one 7 pips out only ~17%), not a flat per-blot penalty.
+  `count_blots()` currently treats every blot identically regardless of exposure distance —
+  a candidate upgrade to the blot term, computable exactly, no ML required.
+- **[Effective Pip Count](https://bkgm.com/articles/Zare/EffectivePipCount/index.html)** —
+  raw pip count undercounts race disadvantage near bearoff because it ignores wastage (pips
+  burned rolling higher than needed once checkers are stacked low); EPC ≈ `7n + 1` for `n`
+  rolls-to-clear corrects for it. `GameState.pip_count()` is raw/uncorrected — fine outside
+  the bearoff, understates the gap inside it.
+- **Motif vs. Silicon Highlands** (via [satirist.org](http://satirist.org/learn-game/systems/gammon/sport.html))
+  — Motif tuned eval weights via self-play + rollout analysis and played reasonably; Silicon
+  Highlands tuned weights with a genetic algorithm and reportedly played worse and
+  inconsistently. Independent confirmation of the self-play noise floor lesson above:
+  automated weight search without a strong external reference isn't reliably better than
+  hand-picked values.
 
 ---
 
@@ -233,8 +275,8 @@ The numbered milestones drive toward a **1.0** release. Everything past that is 
 | M1 | Rules engine | done | Pure lib: legal moves, hitting, bearing off, win — fully tested, no UI |
 | M2 | Playable UI vs random | done | Full board, click-to-move, play a full game vs `random` engine |
 | M3 | Heuristic engine | done | `heuristic` engine + working UI selector |
-| M4 | Expectiminimax + rollouts | next | `expectiminimax` engine, benchmarked vs heuristic |
-| M5 | Neural engine | future | TD-Gammon-style self-play engine, benchmarked vs expectiminimax and (if wired up by now) `gnubg` |
+| M4 | Expectiminimax + rollouts | done | `expectiminimax` engine, benchmarked vs heuristic |
+| M5 | Neural engine | next | TD-Gammon-style self-play engine, benchmarked vs expectiminimax and (if wired up by now) `gnubg` |
 
 That's 1.0.
 

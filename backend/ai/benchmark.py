@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from ai.base import Engine
+from ai.expectiminimax import ExpectiminimaxEngine
 from ai.heuristic import Weights
 from ai.heuristic_engine import HeuristicEngine
 from ai.random_engine import RandomEngine
@@ -34,6 +35,7 @@ from engine.state import Dice, GameState
 _ENGINE_FACTORIES: dict[str, Callable[..., Engine]] = {
     "random": RandomEngine,
     "heuristic": lambda **params: HeuristicEngine(Weights(**params)),
+    "expectiminimax": lambda **params: ExpectiminimaxEngine(**params),
 }
 
 

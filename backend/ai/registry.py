@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ai.base import Engine
+from ai.expectiminimax import ExpectiminimaxEngine
 from ai.heuristic_engine import HeuristicEngine
 from ai.random_engine import RandomEngine
 
@@ -26,6 +27,11 @@ class EngineEntry:
 _ENGINES: dict[str, EngineEntry] = {
     "random": EngineEntry(id="random", label="Random", engine=RandomEngine()),
     "heuristic": EngineEntry(id="heuristic", label="Heuristic", engine=HeuristicEngine()),
+    # depth=1, candidates=8: fast enough to stay interactive. Heavier settings
+    # (deeper search, rollouts) are harness-only — see ai/benchmark.py.
+    "expectiminimax": EngineEntry(
+        id="expectiminimax", label="Expectiminimax", engine=ExpectiminimaxEngine()
+    ),
 }
 
 

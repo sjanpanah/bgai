@@ -1,4 +1,4 @@
-from ai.benchmark import play_game, round_robin
+from ai.benchmark import Competitor, play_game, round_robin
 
 
 def test_play_game_returns_a_winner_and_multiplier():
@@ -14,3 +14,14 @@ def test_heuristic_beats_random_head_to_head():
     random_wins = sum(results["random"].values())
 
     assert heuristic_wins > random_wins
+
+
+def test_expectiminimax_beats_heuristic_head_to_head():
+    # M4's real test suite: 1-ply lookahead through the opponent's reply must
+    # clearly outplay the plain 1-ply heuristic it searches on top of.
+    expectiminimax = Competitor("expectiminimax", {"depth": 1, "candidates": 8})
+    results = round_robin([expectiminimax, "heuristic"], games_per_matchup=10, seed=0)
+    expectiminimax_wins = sum(results[expectiminimax.label].values())
+    heuristic_wins = sum(results["heuristic"].values())
+
+    assert expectiminimax_wins > heuristic_wins

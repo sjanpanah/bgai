@@ -5,6 +5,10 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+    environment:
+      # bind-mounted source lives on the host side of a VM boundary (colima/Docker
+      # Desktop) where inotify events don't propagate -- WatchFiles must poll instead.
+      - WATCHFILES_FORCE_POLLING=true
 
   frontend:
     build: ./frontend
@@ -15,5 +19,6 @@ services:
       - /app/node_modules
     environment:
       - VITE_API_PROXY_TARGET=http://api:8000
+      - VITE_USE_POLLING=true
     depends_on:
       - api

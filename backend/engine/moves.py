@@ -112,24 +112,37 @@ def _search(
     return results
 
 
+def _max_length_candidates(
+    state: GameState, player: int, remaining: list[int]
+) -> list[tuple[list[Move], GameState]]:
+    """Raw (sequence, final_state) results at the maximal reachable length,
+    honoring the forced-larger-die rule when a mixed pair only allows one die
+    to be played at all."""
+    results = _search(state, player, remaining)
+    if not results:
+        return []
+
+    max_len = max(len(seq) for seq, _ in results)
+    candidates = [(seq, fs) for seq, fs in results if len(seq) == max_len]
+
+    if max_len == 1 and len(remaining) == 2 and remaining[0] != remaining[1]:
+        larger = max(remaining)
+        forced = [(seq, fs) for seq, fs in candidates if _die_used(player, seq[0]) == larger]
+        if forced:
+            candidates = forced
+
+    return candidates
+
+
 def legal_turn_sequences(state: GameState, player: int, dice: tuple[int, int]) -> list[list[Move]]:
     """Full-turn move sequences for a roll, honoring the use-both-dice and
     forced-larger-die rules, with sequences that reach an identical resulting
     board collapsed to one. Returns [[]] if no move is legal at all (a dance)."""
     d1, d2 = dice
     values = [d1] * 4 if d1 == d2 else [d1, d2]
-    results = _search(state, player, values)
-    if not results:
+    candidates = _max_length_candidates(state, player, values)
+    if not candidates:
         return [[]]
-
-    max_len = max(len(seq) for seq, _ in results)
-    candidates = [(seq, fs) for seq, fs in results if len(seq) == max_len]
-
-    if max_len == 1 and d1 != d2:
-        larger = max(d1, d2)
-        forced = [(seq, fs) for seq, fs in candidates if _die_used(player, seq[0]) == larger]
-        if forced:
-            candidates = forced
 
     seen: set[tuple] = set()
     deduped: list[list[Move]] = []
@@ -139,3 +152,20 @@ def legal_turn_sequences(state: GameState, player: int, dice: tuple[int, int]) -
             seen.add(key)
             deduped.append(seq)
     return deduped
+
+
+def legal_next_moves(state: GameState, player: int, remaining: list[int]) -> list[Move]:
+    """Legal single-die moves that begin some maximal-length continuation of
+    `remaining` dice values from `state`. Unlike `legal_turn_sequences`, this
+    is not deduped by final board — two sequences can reach the same final
+    board (e.g. two independent checkers moved in either order) while still
+    offering distinct, individually legal first steps. Drives one-die-at-a-time
+    UIs (see POST /game/{id}/move) a step at a time: call again with the
+    resulting state and remaining dice after each move."""
+    seen: set[Move] = set()
+    moves: list[Move] = []
+    for seq, _ in _max_length_candidates(state, player, remaining):
+        if seq[0] not in seen:
+            seen.add(seq[0])
+            moves.append(seq[0])
+    return moves

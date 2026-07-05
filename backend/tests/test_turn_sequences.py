@@ -1,4 +1,4 @@
-from engine.moves import apply_turn, legal_turn_sequences
+from engine.moves import apply_turn, legal_next_moves, legal_turn_sequences
 from engine.state import PLAYER_0, GameState, Move
 
 
@@ -27,6 +27,18 @@ def test_must_use_both_dice_when_possible_over_using_only_one():
     final_state = apply_turn(state, PLAYER_0, sequences[0])
     assert final_state.board[10] == 1
     assert final_state.board[15] == 0
+
+
+def test_legal_next_moves_offers_both_dice_from_same_source():
+    """Regression test: legal_turn_sequences dedups by final board, which
+    silently drops a valid first move whenever some other checker's move
+    order reaches the same final board (very common when two independent
+    checkers move). legal_next_moves must not lose that option."""
+    state = GameState.new_game()
+    # Opening 5-3: point 8 (idx 7) can play either die as a first step.
+    next_moves = legal_next_moves(state, PLAYER_0, [5, 3])
+    from_point_8 = {m.target for m in next_moves if m.source == 7}
+    assert from_point_8 == {2, 4}  # 8/3 (die 5) and 8/5 (die 3)
 
 
 def test_different_orderings_reaching_same_board_are_deduped():

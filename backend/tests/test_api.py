@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from engine.state import GameState
 from main import app
 from routers.game import GAMES
 
@@ -65,6 +66,25 @@ def test_engine_move_is_stateless():
     assert isinstance(resp.json()["move"], list)
     # No game_id involved / no side effect on any stored game.
     assert game_id in GAMES
+
+
+def test_roll_reports_turn_flip_when_forced_to_dance():
+    game_id = client.post("/game/new").json()["game_id"]
+    # Player 0 stuck on the bar, entry blocked for every possible die (1-6).
+    board = [0] * 24
+    for idx in range(18, 24):
+        board[idx] = -2
+    GAMES[game_id].state = GameState(board=board, bar=[1, 0], off=[0, 0], turn=0)
+
+    resp = client.post(f"/game/{game_id}/roll")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["legal_moves"] == []
+    # The turn must have passed server-side, and the response must say so --
+    # the frontend has no other way to learn a dance happened on /roll.
+    assert body["state"]["turn"] == 1
+    # A fresh roll should now be for player 1's turn.
+    assert client.post(f"/game/{game_id}/roll").status_code == 200
 
 
 def test_playing_out_a_full_roll_advances_turn():

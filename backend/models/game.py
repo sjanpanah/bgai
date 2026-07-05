@@ -32,6 +32,7 @@ class NewGameResponse(BaseModel):
 class RollResponse(BaseModel):
     dice: tuple[int, int]
     legal_moves: list[MoveModel]
+    state: GameStateModel
 
 
 class MoveRequest(BaseModel):

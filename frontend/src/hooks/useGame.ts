@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { API_BASE_URL } from "../lib/api";
 import { notateTurn } from "../lib/notation";
 import type { GameOver, GameState, HistoryEntry, Move } from "../types/game";
 
@@ -24,7 +25,7 @@ export function useGame() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   const newGame = useCallback(async () => {
-    const body = await postJson("/game/new");
+    const body = await postJson(`${API_BASE_URL}/game/new`);
     setGameId(body.game_id);
     setState(body.state);
     setDice(null);
@@ -40,7 +41,7 @@ export function useGame() {
 
   const roll = useCallback(async () => {
     if (!gameId) return;
-    const body = await postJson(`/game/${gameId}/roll`);
+    const body = await postJson(`${API_BASE_URL}/game/${gameId}/roll`);
     setState(body.state);
     if (body.legal_moves.length === 0) {
       // Forced dance: no legal entry/move at all: the turn already passed
@@ -65,7 +66,7 @@ export function useGame() {
   const submitMove = useCallback(
     async (move: Move) => {
       if (!gameId || !dice) return;
-      const body = await postJson(`/game/${gameId}/move`, { move });
+      const body = await postJson(`${API_BASE_URL}/game/${gameId}/move`, { move });
       const playedThisTurn = [...turnMoves, move];
       setState(body.state);
       setLegalMoves(body.legal_moves);
@@ -92,7 +93,7 @@ export function useGame() {
     async (engine: string) => {
       if (!gameId) return;
       const opponent = 1 - HUMAN;
-      const body = await postJson(`/game/${gameId}/ai?engine=${engine}`);
+      const body = await postJson(`${API_BASE_URL}/game/${gameId}/ai?engine=${engine}`);
       setState(body.state);
       setHistory((h) => [
         ...h,

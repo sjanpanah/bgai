@@ -7,7 +7,10 @@ import tailwindcss from "@tailwindcss/vite";
 const apiTarget = process.env.VITE_API_PROXY_TARGET || "http://localhost:8000";
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  // GitHub Pages serves this as a project page at /bgai/, not the domain root;
+  // the dev server still needs to run at "/" so the proxy below keeps working.
+  base: command === "build" ? "/bgai/" : "/",
   plugins: [react(), tailwindcss()],
   server: {
     host: true,
@@ -20,4 +23,4 @@ export default defineConfig({
       "/engine": apiTarget,
     },
   },
-});
+}));

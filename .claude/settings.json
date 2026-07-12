@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source .venv/bin/activate && python -m pytest *)",
+      "Bash(source .venv/bin/activate 2>/dev/null; python -m pytest *)",
+      "Bash(.venv/bin/pytest *)",
+      "Bash(source .venv/bin/activate 2>/dev/null; ruff check *)",
+      "Bash(.venv/bin/ruff check *)",
+      "Bash(source .venv/bin/activate && ruff check *)",
+      "Bash(docker compose logs *)",
+      "Bash(curl -s http://localhost:*)",
+      "Bash(curl -s \"http://localhost:*)",
+      "Bash(curl -s http://127.0.0.1:*)",
+      "Bash(curl -s \"http://127.0.0.1:*)",
+      "mcp__Claude_Preview__preview_screenshot",
+      "mcp__Claude_Preview__preview_network",
+      "mcp__Claude_Preview__preview_logs"
+    ]
+  }
+}

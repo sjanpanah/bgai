@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { API_BASE_URL } from "../lib/api";
+import type { TurnAnimation } from "./useAnimatedBoard";
 import { notateTurn } from "../lib/notation";
 import type { GameOver, GameState, HistoryEntry, Move } from "../types/game";
 
@@ -23,6 +24,8 @@ export function useGame() {
   const [turnMoves, setTurnMoves] = useState<Move[]>([]);
   const [gameOver, setGameOver] = useState<GameOver | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [turnAnimation, setTurnAnimation] = useState<TurnAnimation | null>(null);
+  const nextAnimationId = useRef(0);
 
   const newGame = useCallback(async () => {
     const body = await postJson(`${API_BASE_URL}/game/new`);
@@ -33,6 +36,7 @@ export function useGame() {
     setTurnMoves([]);
     setGameOver(null);
     setHistory([]);
+    setTurnAnimation(null);
   }, []);
 
   useEffect(() => {
@@ -69,6 +73,12 @@ export function useGame() {
       const body = await postJson(`${API_BASE_URL}/game/${gameId}/move`, { move });
       const playedThisTurn = [...turnMoves, move];
       setState(body.state);
+      setTurnAnimation({
+        id: nextAnimationId.current++,
+        player: HUMAN,
+        moves: [move],
+        finalState: body.state,
+      });
       setLegalMoves(body.legal_moves);
       if (body.legal_moves.length === 0) {
         setHistory((h) => [
@@ -95,6 +105,12 @@ export function useGame() {
       const opponent = 1 - HUMAN;
       const body = await postJson(`${API_BASE_URL}/game/${gameId}/ai?engine=${engine}`);
       setState(body.state);
+      setTurnAnimation({
+        id: nextAnimationId.current++,
+        player: opponent,
+        moves: body.move,
+        finalState: body.state,
+      });
       setHistory((h) => [
         ...h,
         {
@@ -115,6 +131,7 @@ export function useGame() {
     legalMoves,
     gameOver,
     history,
+    turnAnimation,
     newGame,
     roll,
     submitMove,

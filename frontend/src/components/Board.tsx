@@ -1,56 +1,26 @@
+import {
+  BAR_LEFT,
+  BAR_RIGHT,
+  BAR_WIDTH,
+  BOARD_BOTTOM,
+  BOARD_LEFT,
+  BOARD_RIGHT,
+  BOARD_TOP,
+  CHECKER_R,
+  OFF_LEFT,
+  OFF_RIGHT,
+  checkerCenters,
+  isTop,
+  pointX,
+  trianglePath,
+} from "../lib/boardGeometry";
 import { BAR, OFF, type GameState } from "../types/game";
-
-const BOARD_LEFT = 40;
-const BOARD_RIGHT = 860;
-const BOARD_TOP = 40;
-const BOARD_BOTTOM = 560;
-const BAR_WIDTH = 50;
-const BAR_LEFT = (BOARD_LEFT + BOARD_RIGHT) / 2 - BAR_WIDTH / 2;
-const BAR_RIGHT = BAR_LEFT + BAR_WIDTH;
-const QUADRANT_WIDTH = BAR_LEFT - BOARD_LEFT;
-const POINT_WIDTH = QUADRANT_WIDTH / 6;
-const TRIANGLE_HEIGHT = 230;
-const MID_TOP = BOARD_TOP + TRIANGLE_HEIGHT;
-const MID_BOTTOM = BOARD_BOTTOM - TRIANGLE_HEIGHT;
-const OFF_LEFT = BOARD_RIGHT + 20;
-const OFF_RIGHT = OFF_LEFT + 40;
-const CHECKER_R = 16;
+import type { Flight } from "../hooks/useAnimatedBoard";
 
 const LIGHT_PLAYER = "#f4f1ea";
 const DARK_PLAYER = "#3a3a3a";
 const LIGHT_TRIANGLE = "#c9a876";
 const DARK_TRIANGLE = "#8a6642";
-
-function isTop(idx: number): boolean {
-  return idx >= 12;
-}
-
-function pointX(idx: number): number {
-  if (idx <= 5) return BAR_RIGHT + (5 - idx) * POINT_WIDTH + POINT_WIDTH / 2;
-  if (idx <= 11) return BOARD_LEFT + (11 - idx) * POINT_WIDTH + POINT_WIDTH / 2;
-  if (idx <= 17) return BOARD_LEFT + (idx - 12) * POINT_WIDTH + POINT_WIDTH / 2;
-  return BAR_RIGHT + (idx - 18) * POINT_WIDTH + POINT_WIDTH / 2;
-}
-
-function trianglePath(idx: number): string {
-  const x = pointX(idx);
-  const top = isTop(idx);
-  const baseY = top ? BOARD_TOP : BOARD_BOTTOM;
-  const apexY = top ? MID_TOP : MID_BOTTOM;
-  const half = POINT_WIDTH / 2 - 2;
-  return `M ${x - half} ${baseY} L ${x + half} ${baseY} L ${x} ${apexY} Z`;
-}
-
-function checkerCenters(idx: number, count: number): number[] {
-  const top = isTop(idx);
-  const baseY = top ? BOARD_TOP : BOARD_BOTTOM;
-  const dir = top ? 1 : -1;
-  const start = baseY + dir * (CHECKER_R + 4);
-  const available = TRIANGLE_HEIGHT - CHECKER_R * 2;
-  const spacing =
-    count > 1 ? Math.min(CHECKER_R * 2, available / (count - 1)) : 0;
-  return Array.from({ length: count }, (_, i) => start + dir * spacing * i);
-}
 
 interface BoardProps {
   state: GameState;
@@ -58,6 +28,7 @@ interface BoardProps {
   selectedSource: number | null;
   selectableDestinations: number[];
   onPointClick: (idx: number) => void;
+  flight?: Flight | null;
 }
 
 export function Board({
@@ -66,6 +37,7 @@ export function Board({
   selectedSource,
   selectableDestinations,
   onPointClick,
+  flight,
 }: BoardProps) {
   const highlightFor = (idx: number) => {
     if (idx === selectedSource) return "#facc15";
@@ -220,6 +192,17 @@ export function Board({
           {state.off[0]}
         </text>
       </g>
+
+      {flight && (
+        <circle
+          cx={flight.x}
+          cy={flight.y}
+          r={CHECKER_R}
+          fill={flight.player === 0 ? LIGHT_PLAYER : DARK_PLAYER}
+          stroke="#222"
+          strokeWidth={1.5}
+        />
+      )}
     </svg>
   );
 }

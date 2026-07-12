@@ -3,6 +3,7 @@ import { Board } from "./components/Board";
 import { Dice } from "./components/Dice";
 import { EngineSelect } from "./components/EngineSelect";
 import { MoveHistory } from "./components/MoveHistory";
+import { useAnimatedBoard } from "./hooks/useAnimatedBoard";
 import { useEngines } from "./hooks/useEngines";
 import { useGame } from "./hooks/useGame";
 
@@ -14,6 +15,7 @@ function App() {
     legalMoves,
     gameOver,
     history,
+    turnAnimation,
     newGame,
     roll,
     submitMove,
@@ -23,9 +25,11 @@ function App() {
   const engines = useEngines();
   const [selectedEngine, setSelectedEngine] = useState("random");
   const [selectedSource, setSelectedSource] = useState<number | null>(null);
+  const { displayState, flight } = useAnimatedBoard(state, turnAnimation);
 
   const humansTurn = state?.turn === human;
   const isRolling = dice !== null;
+  const isAnimating = flight !== null;
 
   useEffect(() => {
     if (!state || gameOver) return;
@@ -35,9 +39,9 @@ function App() {
   }, [state, gameOver, isRolling, human, aiMove, selectedEngine]);
 
   const selectableSources = useMemo(() => {
-    if (!humansTurn || !isRolling) return [];
+    if (!humansTurn || !isRolling || isAnimating) return [];
     return [...new Set(legalMoves.map((m) => m.source))];
-  }, [humansTurn, isRolling, legalMoves]);
+  }, [humansTurn, isRolling, isAnimating, legalMoves]);
 
   const selectableDestinations = useMemo(() => {
     if (selectedSource === null) return [];
@@ -47,7 +51,7 @@ function App() {
   }, [legalMoves, selectedSource]);
 
   function handlePointClick(idx: number) {
-    if (!humansTurn || !isRolling) return;
+    if (!humansTurn || !isRolling || isAnimating) return;
     if (selectedSource !== null) {
       const match = legalMoves.find(
         (m) => m.source === selectedSource && m.target === idx,
@@ -87,11 +91,12 @@ function App() {
       </div>
 
       <Board
-        state={state}
+        state={displayState ?? state}
         selectableSources={selectableSources}
         selectedSource={selectedSource}
         selectableDestinations={selectableDestinations}
         onPointClick={handlePointClick}
+        flight={flight}
       />
 
       <div className="flex items-center justify-between">

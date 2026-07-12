@@ -69,6 +69,17 @@ function App() {
     }
   }
 
+  function handleDragMove(source: number, target: number) {
+    if (!humansTurn || !isRolling || isAnimating) return;
+    const match = legalMoves.find(
+      (m) => m.source === source && m.target === target,
+    );
+    if (match) {
+      submitMove(match);
+      setSelectedSource(null);
+    }
+  }
+
   if (!state) return <p className="p-8">Loading...</p>;
 
   return (
@@ -96,6 +107,7 @@ function App() {
         selectedSource={selectedSource}
         selectableDestinations={selectableDestinations}
         onPointClick={handlePointClick}
+        onMove={handleDragMove}
         flight={flight}
       />
 

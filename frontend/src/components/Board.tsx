@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import {
   BAR_LEFT,
   BAR_RIGHT,
@@ -14,6 +15,7 @@ import {
   pointX,
   trianglePath,
 } from "../lib/boardGeometry";
+import { liftOne } from "../lib/visualMove";
 import { BAR, OFF, type GameState } from "../types/game";
 import type { Flight } from "../hooks/useAnimatedBoard";
 
@@ -22,13 +24,28 @@ const DARK_PLAYER = "#3a3a3a";
 const LIGHT_TRIANGLE = "#c9a876";
 const DARK_TRIANGLE = "#8a6642";
 
+// The human is always player 0 (see useGame.ts), and dragging is only ever
+// possible on the human's own checkers (selectableSources is empty otherwise),
+// so the drag ghost can just always use the human's color.
+const HUMAN = 0;
+
+const DRAG_THRESHOLD_PX = 4;
+
 interface BoardProps {
   state: GameState;
   selectableSources: number[];
   selectedSource: number | null;
   selectableDestinations: number[];
   onPointClick: (idx: number) => void;
+  onMove?: (source: number, target: number) => void;
   flight?: Flight | null;
+}
+
+interface DragState {
+  source: number;
+  x: number;
+  y: number;
+  moved: boolean;
 }
 
 export function Board({
@@ -37,8 +54,14 @@ export function Board({
   selectedSource,
   selectableDestinations,
   onPointClick,
+  onMove,
   flight,
 }: BoardProps) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const pointerDownClient = useRef<{ x: number; y: number } | null>(null);
+  const pointerDownIdx = useRef<number | null>(null);
+
   const highlightFor = (idx: number) => {
     if (idx === selectedSource) return "#facc15";
     if (selectableSources.includes(idx)) return "#4ade80";
@@ -46,8 +69,65 @@ export function Board({
     return "none";
   };
 
+  function clientToSvg(clientX: number, clientY: number): { x: number; y: number } {
+    const svg = svgRef.current;
+    const ctm = svg?.getScreenCTM();
+    if (!svg || !ctm) return { x: clientX, y: clientY };
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const p = pt.matrixTransform(ctm.inverse());
+    return { x: p.x, y: p.y };
+  }
+
+  function handlePointerDown(idx: number, e: React.PointerEvent) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    pointerDownClient.current = { x: e.clientX, y: e.clientY };
+    pointerDownIdx.current = idx;
+    if (selectableSources.includes(idx)) {
+      const p = clientToSvg(e.clientX, e.clientY);
+      setDrag({ source: idx, x: p.x, y: p.y, moved: false });
+    }
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    if (!drag || !pointerDownClient.current) return;
+    const dx = e.clientX - pointerDownClient.current.x;
+    const dy = e.clientY - pointerDownClient.current.y;
+    const moved = drag.moved || Math.hypot(dx, dy) > DRAG_THRESHOLD_PX;
+    const p = clientToSvg(e.clientX, e.clientY);
+    setDrag({ ...drag, x: p.x, y: p.y, moved });
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    const wasDragging = drag?.moved ?? false;
+    const source = drag?.source ?? pointerDownIdx.current;
+    setDrag(null);
+    pointerDownClient.current = null;
+    pointerDownIdx.current = null;
+
+    if (source === null) return;
+
+    if (wasDragging) {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const dropTarget = el instanceof Element ? el.closest("[data-point-idx]") : null;
+      if (dropTarget) {
+        onMove?.(source, Number(dropTarget.getAttribute("data-point-idx")));
+      }
+      return;
+    }
+
+    onPointClick(source);
+  }
+
+  const renderState = drag?.moved ? liftOne(state, drag.source, HUMAN) : state;
+
   return (
-    <svg viewBox="0 0 920 600" className="w-full max-w-4xl mx-auto select-none">
+    <svg
+      ref={svgRef}
+      viewBox="0 0 920 600"
+      className="w-full max-w-4xl mx-auto select-none"
+    >
       <rect
         x={BOARD_LEFT}
         y={BOARD_TOP}
@@ -73,8 +153,11 @@ export function Board({
       {Array.from({ length: 24 }, (_, idx) => (
         <g
           key={idx}
-          onClick={() => onPointClick(idx)}
-          style={{ cursor: "pointer" }}
+          data-point-idx={idx}
+          onPointerDown={(e) => handlePointerDown(idx, e)}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          style={{ cursor: "pointer", touchAction: "none" }}
         >
           <path
             d={trianglePath(idx)}
@@ -101,13 +184,13 @@ export function Board({
       ))}
 
       {Array.from({ length: 24 }, (_, idx) => {
-        const raw = state.board[idx];
+        const raw = renderState.board[idx];
         const player = raw > 0 ? 0 : raw < 0 ? 1 : null;
         if (player === null) return null;
         const count = Math.abs(raw);
         const centers = checkerCenters(idx, count);
         return (
-          <g key={`checkers-${idx}`}>
+          <g key={`checkers-${idx}`} data-point-idx={idx}>
             {centers.map((y, i) => (
               <circle
                 key={i}
@@ -117,6 +200,10 @@ export function Board({
                 fill={player === 0 ? LIGHT_PLAYER : DARK_PLAYER}
                 stroke="#222"
                 strokeWidth={1.5}
+                onPointerDown={(e) => handlePointerDown(idx, e)}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                style={{ cursor: "pointer", touchAction: "none" }}
               />
             ))}
           </g>
@@ -124,7 +211,13 @@ export function Board({
       })}
 
       {/* Bar: player 0's checkers in the lower half, player 1's in the upper half. */}
-      <g onClick={() => onPointClick(BAR)} style={{ cursor: "pointer" }}>
+      <g
+        data-point-idx={BAR}
+        onPointerDown={(e) => handlePointerDown(BAR, e)}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        style={{ cursor: "pointer", touchAction: "none" }}
+      >
         {highlightFor(BAR) !== "none" && (
           <rect
             x={BAR_LEFT}
@@ -136,7 +229,7 @@ export function Board({
             strokeWidth={4}
           />
         )}
-        {Array.from({ length: state.bar[0] }, (_, i) => (
+        {Array.from({ length: renderState.bar[0] }, (_, i) => (
           <circle
             key={`bar0-${i}`}
             cx={(BAR_LEFT + BAR_RIGHT) / 2}
@@ -147,7 +240,7 @@ export function Board({
             strokeWidth={1.5}
           />
         ))}
-        {Array.from({ length: state.bar[1] }, (_, i) => (
+        {Array.from({ length: renderState.bar[1] }, (_, i) => (
           <circle
             key={`bar1-${i}`}
             cx={(BAR_LEFT + BAR_RIGHT) / 2}
@@ -161,7 +254,11 @@ export function Board({
       </g>
 
       {/* Off tray: player 1 (top-right bearer) on top, player 0 (bottom-right bearer) on bottom. */}
-      <g onClick={() => onPointClick(OFF)} style={{ cursor: "pointer" }}>
+      <g
+        data-point-idx={OFF}
+        onClick={() => onPointClick(OFF)}
+        style={{ cursor: "pointer" }}
+      >
         {highlightFor(OFF) !== "none" && (
           <rect
             x={OFF_LEFT}
@@ -201,6 +298,19 @@ export function Board({
           fill={flight.player === 0 ? LIGHT_PLAYER : DARK_PLAYER}
           stroke="#222"
           strokeWidth={1.5}
+          pointerEvents="none"
+        />
+      )}
+
+      {drag?.moved && (
+        <circle
+          cx={drag.x}
+          cy={drag.y}
+          r={CHECKER_R}
+          fill={LIGHT_PLAYER}
+          stroke="#222"
+          strokeWidth={1.5}
+          pointerEvents="none"
         />
       )}
     </svg>

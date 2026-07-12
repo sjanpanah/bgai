@@ -15,6 +15,7 @@ if it needs more.
 - Show the opponent's last dice roll
 - Slow down the animations for the opponent's moves
 - Add a pip counter to the board (both sides)
+- Rename difficulties/opponents (engine dropdown labels)
 
 ## Done
 

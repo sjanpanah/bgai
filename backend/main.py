@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -5,9 +7,11 @@ from routers import engine, game
 
 app = FastAPI(title="Backgammon vs AI")
 
+allowed_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

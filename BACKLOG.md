@@ -11,10 +11,10 @@ if it needs more.
 
 ## Open
 
-- Make checker animation speed configurable
-- Animate the dice roll (a little tumble/reveal, not just appearing)
+-
 
 ## Done
 
+- Animate the dice roll (a little tumble/reveal, not just appearing)
 - Move by clicking/dragging the checker itself, not just the point (triangle) behind it
 - Animate checker movement — human and AI/opponent turns alike; no checker should ever teleport, always a movement

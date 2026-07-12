@@ -345,6 +345,23 @@ player-relative view helper, but keep it in `ai/encoding.py` to keep `engine/` p
 - **Benchmark noise floor** (see M3/M4 notes) — a small round-robin can't rank close engines; require a clear gap or many games before claiming "stronger."
 - **Determinism** — seed both self-play dice and net weight init so training runs reproduce.
 
+### Stretch experiment: hand-crafted features (post-baseline, optional)
+Not part of M5's pass/fail bar — only attempt after the raw-198 net is trained and beats
+`expectiminimax`, so it has a fixed, working baseline to A/B against (sidesteps the M3 self-play
+noise-floor lesson: comparing an addition against a held-fixed reference, not two similar nets
+guessed against each other). Design `ai/encoding.py` so enhanced features **append** to the base
+198 vector (net input dim is a param) — the experiment is then a different feature function plus
+a fresh training run, no re-architecting. Candidate features, all with theory behind them from
+CLAUDE.md's Prior art section:
+- **Shot-count blot exposure** — per-blot hit probability from the 21 dice outcomes, replacing
+  the exposure-blind flat `count_blots()`.
+- **Effective Pip Count** — the bearoff-wastage correction raw `pip_count()` currently misses.
+- **Phase one-hot** (contact / race / bearoff) — per Berliner's BKG 9.8, which blended
+  phase-specific evaluators to avoid discontinuities; a phase feature lets one net span phases.
+
+Run the harness round-robin: enhanced-feature net vs raw-198 net, enough games to clear the noise
+floor, before concluding the addition helped.
+
 ### New files (all under `ai/`; `engine/` stays pure)
 `ai/encoding.py`, `ai/neural_net.py`, `ai/neural_engine.py`, `ai/train_td.py`,
 `ai/weights/td_v1.npz` (committed checkpoint), plus a registry entry + benchmark factory.

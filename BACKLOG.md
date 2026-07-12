@@ -11,7 +11,10 @@ if it needs more.
 
 ## Open
 
--
+- Improve the move history section (better formatting/readability, not just a flat log)
+- Show the opponent's last dice roll
+- Slow down the animations for the opponent's moves
+- Add a pip counter to the board (both sides)
 
 ## Done
 

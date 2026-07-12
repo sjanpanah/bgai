@@ -280,6 +280,75 @@ The numbered milestones drive toward a **1.0** release. Everything past that is 
 
 That's 1.0.
 
+---
+
+## M5 build plan (neural engine) — the active milestone
+
+TD-Gammon-style self-play value network, shipped behind the same `choose_move` interface.
+This section is the working spec so the milestone can be picked up across separate threads;
+update it as steps land. Decisions below are settled — don't relitigate them without reason.
+
+### The core realization
+`NeuralEngine` is architecturally identical to `HeuristicEngine`: **1-ply greedy** over
+`legal_sequences`, picking the resulting position with the best value. The only difference is
+where the value comes from — a learned net instead of `evaluate()`. TD-Gammon itself played
+1-ply (sometimes 2) with a strong value net, not deep search. Two freebies fall out: (1) the
+net plugs into the **same `leaf_fn` slot** `heuristic`/`rollout` use in `ai/expectiminimax.py`,
+so "neural + shallow search" is later free, not new architecture; (2) zero frontend/API/rules
+changes, same as M3/M4 — purely additive under the interface. So M5's real content is the
+**encoding**, the **network**, and the **self-play training loop**, not the engine class.
+
+### Settled decisions
+- **Output head: single win-probability** (one sigmoid = P(side-to-move wins)). Simplest correct
+  TD pipeline; enough to clear the "beat expectiminimax" bar since head-to-head win rate is the
+  real metric. Gammon/backgammon-aware multi-output is a *later* refinement, not M5's start.
+- **ML dependency: NumPy only.** Hand-rolled 1-hidden-layer MLP + TD(λ) eligibility traces
+  (~20 lines fwd/bwd). No PyTorch — eligibility traces fight autograd/optimizers, and it's
+  overkill for a tiny CPU net. NumPy lives in `ai/` only; `engine/` stays framework-pure.
+- **Training compute: a full overnight self-play run** is the deliverable — train tens of
+  thousands of games (background, seeded), actually beat `expectiminimax`, ship the checkpoint.
+
+### Feature encoding — standard TD-Gammon 198 (per Prior art; custom encodings are later)
+Layout: **192** = 4 units × 24 points × 2 players; per (point, player) with `n` checkers:
+`[n≥1, n≥2, n≥3, (n−3)/2 if n>3 else 0]`. Plus **2** bar (`bar[p]/2`), **2** off (`off[p]/15`),
+**2** one-hot side-to-move = **198**. **Canonicalize to the side-to-move's perspective:** add a
+mirror-view helper (`i → 23−i`, negate signs, swap `bar`/`off`) so Player 1-to-move maps into the
+same frame as Player 0 — a small net then learns only one orientation. This is a legit
+player-relative view helper, but keep it in `ai/encoding.py` to keep `engine/` pure.
+
+### Training — TD(λ) self-play
+- **Value:** `V(s)` = P(side-to-move-at-`s` wins), single sigmoid, canonical perspective.
+- **Self-play:** current net plays itself, 1-ply greedy each move; dice seeded and threaded
+  through (never unseeded — mirror what `ai/rollout.py` already does).
+- **TD update** (handle perspective carefully — this is the classic silent-bug spot):
+  - non-terminal move by A into `s_{t+1}` (B on roll): target for `V(s_t)` = `1 − V(s_{t+1})`,
+    so `δ_t = (1 − V(s_{t+1})) − V(s_t)`.
+  - winning move: target `= 1`, `δ_t = 1 − V(s_t)`.
+  - eligibility trace: `e ← λ·e + ∇V(s_t)`; `w ← w + α·δ_t·e`; reset `e` each game.
+- **Offline/developer-facing**, like `benchmark.py` — not at request time. Output is a small
+  checkpoint (`~198×128` ≈ a few hundred KB) **committed to the repo**; the shipped engine loads it.
+- **Scale:** TD-Gammon needed ~200k games for decent play, but our bar is only beating
+  `expectiminimax(depth=1)` — likely tens of thousands of games, an overnight CPU run.
+
+### Sequencing (each step commits, leaves repo working; compute risk is isolated to step 5)
+1. `ai/encoding.py` — 198 encoding + canonical mirror; tests (length, known positions, flip symmetry). Pure, no training.
+2. `ai/neural_net.py` — NumPy MLP (~80–128 hidden units), sigmoid output, `.npz` save/load; forward-shape + round-trip tests.
+3. `ai/neural_engine.py` — `NeuralEngine.choose_move` (1-ply greedy over the net); register it + benchmark factory; verify plumbing with a random-init net (plays badly, but proves end-to-end + dropdown pickup).
+4. `ai/train_td.py` — TD(λ) self-play loop. **Start with λ=0 (one-step TD)** to de-risk the trace bookkeeping; seeded dice; periodic eval vs `heuristic`/`expectiminimax`; checkpointing.
+5. **Overnight training run** (background) — track win-rate vs `heuristic`, then `expectiminimax`, as it climbs.
+6. Commit `ai/weights/td_v1.npz`, register the engine, lock in a benchmark test, verify in browser. Optional freebie: wire the net as an expectiminimax leaf evaluator.
+7. *(If `gnubg` wired up by now)* benchmark vs `gnubg` per the milestone note.
+
+### Risks / gotchas
+- **Training compute/time** is the top risk — mitigate with NumPy vectorization, a tiny net, background overnight run, frequent checkpoints.
+- **TD perspective/sign bug** is the classic silent failure — mitigate with the λ=0 start plus sanity gates: value of a nearly-won position → ~1, nearly-lost → ~0, and self-play win-rate vs `random` climbs above 50% early (confirms learning *direction*).
+- **Benchmark noise floor** (see M3/M4 notes) — a small round-robin can't rank close engines; require a clear gap or many games before claiming "stronger."
+- **Determinism** — seed both self-play dice and net weight init so training runs reproduce.
+
+### New files (all under `ai/`; `engine/` stays pure)
+`ai/encoding.py`, `ai/neural_net.py`, `ai/neural_engine.py`, `ai/train_td.py`,
+`ai/weights/td_v1.npz` (committed checkpoint), plus a registry entry + benchmark factory.
+
 ## Future ideas (post-1.0)
 
 Uncommitted, not scheduled — captured so we don't lose them.

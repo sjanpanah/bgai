@@ -363,16 +363,25 @@ it is learning can still be silently mis-crediting everything before the last pl
 
 **Measured effect of the fix**, 60-game evals, α=0.1, 80 hidden:
 
-| config | vs `random` | vs `heuristic` |
-|---|---|---|
-| λ=0.9, buggy `+λ` trace, 4k games | 72% | 5% |
-| λ=0.0 (correct either way), 5k / 10k / 15k games | 100% | 42% / 70% / 65% |
-| λ=0.7, fixed trace, 5k / 10k / 15k games | 98% / 100% / 100% | 63% / 62% / **72%** |
+| config | games | vs `random` | vs `heuristic` |
+|---|---|---|---|
+| λ=0.9, buggy `+λ` trace, α=0.1 | 5k → 30k | 72 / 80 / 68 / 70 / 77 / 77% | 20 / 8 / 5 / 12 / 3 / 10% |
+| λ=0.9, buggy `+λ` trace, α=0.03 | 5k → 15k | 95 / 93 / **72**% | 22 / 7 / **3**% |
+| λ=0.0 (correct either way), α=0.1 | 5k → 20k | 100% throughout | 42 / 70 / 65 / **72**% |
+| λ=0.7, fixed trace, α=0.1 | 5k → 15k | 98 / 100 / 100% | 63 / 62 / **72**% |
 
-λ=0.7 reaches a useful level faster than λ=0 (63% vs 42% at 5k games), as the theory predicts;
-by 15k they are within the noise floor of a 60-game sample, and **neither had plateaued**. For
-scale: M4's `expectiminimax(depth=1)` beats `heuristic` 65%, so the net was already around that
-level after ~15k games — well before any long run.
+**The buggy trace didn't just learn slowly — it got worse the longer it trained.** Over 30k
+games its win rate against `heuristic` wandered between 3% and 20% with no trend, and the
+α=0.03 variant *declined* against `random` (95% → 72%) as training went on. That is the
+signature to watch for: with the sign wrong, additional self-play is actively harmful, because
+every ply before the last is being credited in the wrong direction. A run that plateaus is
+merely undertrained; a run that degrades is misconfigured.
+
+With the trace fixed, λ=0.7 reaches a useful level faster than λ=0 (63% vs 42% at 5k games), as
+the theory predicts; by 15–20k both sit at 72% and are within the noise floor of a 60-game
+sample, and **neither had plateaued**. For scale: M4's `expectiminimax(depth=1)` beats
+`heuristic` 65%, so the net was already around that level after ~15k games — well before any
+long run.
 
 **Throughput:** ~25–45 self-play games/s single-process on CPU (it speeds up as the net improves
 and games get shorter — early untrained games drag to the 500-ply cap). An overnight run is

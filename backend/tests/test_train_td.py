@@ -41,8 +41,37 @@ def test_traces_decay_and_accumulate_with_lambda():
 
     traces.accumulate(net, x, h, y, lam=0.5)
     traces.accumulate(net, x, h, y, lam=0.5)
-    # Second step: e = 0.5 * grad + grad = 1.5 * grad (same x both times).
-    assert np.allclose(traces.W1, 1.5 * dW1)
+    # The decay is -lambda (perspective flips every ply), so the second step
+    # gives e = -0.5*grad + grad = 0.5*grad, not 1.5*grad.
+    assert np.allclose(traces.W1, 0.5 * dW1)
+
+
+def test_trace_matches_fixed_perspective_td_lambda():
+    """The -lambda trace over the side-to-move value `V` must produce exactly
+    the same weight updates as textbook TD(lambda) over a fixed-perspective
+    value `U` = P(player 0 wins). This is the equivalence the sign is there to
+    preserve; a +lambda trace breaks it for any lambda > 0."""
+    lam, alpha = 0.9, 0.1
+    rng = np.random.default_rng(0)
+    grads = [rng.standard_normal(5) for _ in range(4)]
+    deltas = [0.3, -0.2, 0.5, -0.1]
+    signs = [1, -1, 1, -1]  # mover alternates every ply
+
+    # Textbook TD(lambda) on U: grad U = sign * grad V, delta^U = sign * delta.
+    trace_u = np.zeros(5)
+    weights_u = np.zeros(5)
+    for grad, delta, sign in zip(grads, deltas, signs):
+        trace_u = lam * trace_u + sign * grad
+        weights_u += alpha * (sign * delta) * trace_u
+
+    # Our canonical-perspective form, with the alternating trace.
+    trace_v = np.zeros(5)
+    weights_v = np.zeros(5)
+    for grad, delta in zip(grads, deltas):
+        trace_v = -lam * trace_v + grad
+        weights_v += alpha * delta * trace_v
+
+    assert np.allclose(weights_u, weights_v)
 
 
 def test_traces_reset_zeroes_everything():

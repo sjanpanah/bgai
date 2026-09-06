@@ -69,7 +69,24 @@ class TrainConfig:
 class Traces:
     """TD(lambda) eligibility traces, one per parameter tensor. Accumulated
     in place — a fresh allocation of the 198xH array every ply would dominate
-    the update cost."""
+    the update cost.
+
+    The decay is `-lambda`, not `+lambda`. That sign is the whole subtlety of
+    running TD(lambda) in a side-to-move ("canonical") perspective, so it is
+    worth spelling out. Write `U(s)` for a fixed perspective — P(player 0
+    wins) — where plain TD(lambda) is `e <- lambda*e + grad U(s_t)`. Our
+    `V(s)` is P(*mover at s* wins), so `U = V` on player 0's plies and
+    `U = 1 - V` on player 1's: `grad U(s_t) = sign_t * grad V(s_t)` and
+    `delta^U_t = sign_t * delta_t`, with `sign_t` flipping every ply. Push
+    those through the recursion and `e^U_t = sign_t * e_t`, which leaves the
+    weight update `alpha * delta_t * e_t` unchanged only if the trace itself
+    alternates: `e_t = -lambda*e_{t-1} + grad V(s_t)`.
+
+    With `+lambda` every past ply contributes with the wrong sign half the
+    time, so long-range credit fights itself — invisible at lambda=0 (both
+    forms collapse to the raw gradient), silently wrong above it.
+    `test_trace_matches_fixed_perspective_td_lambda` pins the equivalence.
+    """
 
     def __init__(self, net: NeuralNet) -> None:
         self.W1 = np.zeros_like(net.W1)
@@ -84,7 +101,7 @@ class Traces:
         self.b2 = 0.0
 
     def accumulate(self, net: NeuralNet, x: np.ndarray, h: np.ndarray, y: float, lam: float) -> None:
-        """`e <- lambda*e + grad V(s_t)`."""
+        """`e <- -lambda*e + grad V(s_t)` — see the class docstring for the sign."""
         dW1, db1, dW2, db2 = net.gradient(x, h, y)
         if lam == 0.0:  # one-step TD: the trace is just the current gradient
             np.copyto(self.W1, dW1)
@@ -92,13 +109,14 @@ class Traces:
             np.copyto(self.W2, dW2)
             self.b2 = db2
             return
-        self.W1 *= lam
+        decay = -lam
+        self.W1 *= decay
         self.W1 += dW1
-        self.b1 *= lam
+        self.b1 *= decay
         self.b1 += db1
-        self.W2 *= lam
+        self.W2 *= decay
         self.W2 += dW2
-        self.b2 = lam * self.b2 + db2
+        self.b2 = decay * self.b2 + db2
 
     def apply(self, net: NeuralNet, delta: float, alpha: float) -> None:
         """`w <- w + alpha*delta*e`."""

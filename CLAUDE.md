@@ -324,7 +324,16 @@ player-relative view helper, but keep it in `ai/encoding.py` to keep `engine/` p
   - non-terminal move by A into `s_{t+1}` (B on roll): target for `V(s_t)` = `1 − V(s_{t+1})`,
     so `δ_t = (1 − V(s_{t+1})) − V(s_t)`.
   - winning move: target `= 1`, `δ_t = 1 − V(s_t)`.
-  - eligibility trace: `e ← λ·e + ∇V(s_t)`; `w ← w + α·δ_t·e`; reset `e` each game.
+  - eligibility trace: **`e ← −λ·e + ∇V(s_t)`**; `w ← w + α·δ_t·e`; reset `e` each game.
+  - **The trace decay is negative — this is not a typo.** Because `V` is defined from the
+    side-to-move's perspective, the perspective flips every ply: against a fixed-perspective
+    `U` = P(player 0 wins), `∇U(s_t) = sign_t·∇V(s_t)` and `δᵁ_t = sign_t·δ_t` with `sign_t`
+    alternating. Pushing that through textbook TD(λ) gives `eᵁ_t = sign_t·e_t`, which
+    preserves the update `α·δ_t·e_t` *only* if the trace alternates too. A `+λ` trace makes
+    half of every past ply's credit push the wrong way. It is invisible at λ=0 (both forms
+    collapse to the raw gradient) and silently wrong above it — we shipped this bug, saw
+    λ=0.7/0.9 underperform, and caught it by deriving the equivalence. Pinned by
+    `test_trace_matches_fixed_perspective_td_lambda`.
 - **Offline/developer-facing**, like `benchmark.py` — not at request time. Output is a small
   checkpoint (`~198×128` ≈ a few hundred KB) **committed to the repo**; the shipped engine loads it.
 - **Scale:** TD-Gammon needed ~200k games for decent play, but our bar is only beating

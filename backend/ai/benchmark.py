@@ -27,15 +27,30 @@ from ai.base import Engine
 from ai.expectiminimax import ExpectiminimaxEngine
 from ai.heuristic import Weights
 from ai.heuristic_engine import HeuristicEngine
+from ai.neural_engine import NeuralEngine
+from ai.neural_net import NeuralNet
 from ai.random_engine import RandomEngine
 from engine.moves import apply_turn, legal_turn_sequences
 from engine.rules import has_won, win_multiplier
 from engine.state import Dice, GameState
 
+
+def _build_neural(weights_path: str | None = None, seed: int | None = None) -> NeuralEngine:
+    """`weights_path` loads a checkpoint (e.g. a mid-training snapshot to
+    benchmark); `seed` builds a fresh random-init net instead — neither given
+    falls back to `ai/weights/td_v1.npz` if present, else random-init."""
+    if weights_path is not None:
+        return NeuralEngine(weights_path=weights_path)
+    if seed is not None:
+        return NeuralEngine(net=NeuralNet(seed=seed))
+    return NeuralEngine()
+
+
 _ENGINE_FACTORIES: dict[str, Callable[..., Engine]] = {
     "random": RandomEngine,
     "heuristic": lambda **params: HeuristicEngine(Weights(**params)),
     "expectiminimax": lambda **params: ExpectiminimaxEngine(**params),
+    "neural": lambda **params: _build_neural(**params),
 }
 
 

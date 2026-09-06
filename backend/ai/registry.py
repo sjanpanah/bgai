@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from ai.base import Engine
 from ai.expectiminimax import ExpectiminimaxEngine
 from ai.heuristic_engine import HeuristicEngine
+from ai.neural_engine import NeuralEngine
 from ai.random_engine import RandomEngine
 
 DEFAULT_ENGINE_ID = "random"
@@ -32,6 +33,10 @@ _ENGINES: dict[str, EngineEntry] = {
     "expectiminimax": EngineEntry(
         id="expectiminimax", label="Expectiminimax", engine=ExpectiminimaxEngine()
     ),
+    # Loads ai/weights/td_v1.npz if it's been trained yet; falls back to a
+    # random-init net otherwise (plays badly, but keeps the dropdown entry
+    # and API plumbing working end-to-end before training lands).
+    "neural": EngineEntry(id="neural", label="Neural", engine=NeuralEngine()),
 }
 
 

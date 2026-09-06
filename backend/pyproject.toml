@@ -3,7 +3,7 @@ name = "bgai-backend"
 version = "0.1.0"
 description = "Backgammon vs AI — backend"
 requires-python = ">=3.11"
-dependencies = ["fastapi>=0.110", "uvicorn[standard]>=0.29", "pydantic>=2.0"]
+dependencies = ["fastapi>=0.110", "uvicorn[standard]>=0.29", "pydantic>=2.0", "numpy>=1.26"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6", "httpx>=0.27"]

@@ -42,6 +42,10 @@ class TrainConfig:
     games: int = 50_000
     hidden_size: int = DEFAULT_HIDDEN_SIZE
     alpha: float = 0.1
+    # Linearly decays `alpha` -> `alpha_final` across the run when set. A long
+    # run at a fixed alpha keeps taking big steps long after the net is good,
+    # which shows up as the win rate wobbling instead of settling.
+    alpha_final: float | None = None
     lam: float = 0.0  # lambda=0 (one-step TD) first — see CLAUDE.md's M5 risks
     seed: int = 42
     max_turns: int = 500
@@ -240,12 +244,18 @@ def train(config: TrainConfig) -> NeuralNet:
     )
 
     for game in range(1, config.games + 1):
+        if config.alpha_final is None:
+            alpha = config.alpha
+        else:
+            progress = (game - 1) / max(config.games - 1, 1)
+            alpha = config.alpha + progress * (config.alpha_final - config.alpha)
+
         winner, _, plies = self_play_game(
             net,
             engine,
             traces,
             seed=config.seed + game,
-            alpha=config.alpha,
+            alpha=alpha,
             lam=config.lam,
             max_turns=config.max_turns,
         )
@@ -298,6 +308,9 @@ def main() -> None:
     parser.add_argument("--games", type=int, default=defaults.games)
     parser.add_argument("--hidden-size", type=int, default=defaults.hidden_size)
     parser.add_argument("--alpha", type=float, default=defaults.alpha)
+    parser.add_argument(
+        "--alpha-final", type=float, default=None, help="linearly decay alpha to this value"
+    )
     parser.add_argument("--lam", type=float, default=defaults.lam)
     parser.add_argument("--seed", type=int, default=defaults.seed)
     parser.add_argument("--out", type=Path, default=defaults.out)
@@ -313,6 +326,7 @@ def main() -> None:
             games=args.games,
             hidden_size=args.hidden_size,
             alpha=args.alpha,
+            alpha_final=args.alpha_final,
             lam=args.lam,
             seed=args.seed,
             out=args.out,

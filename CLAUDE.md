@@ -340,17 +340,63 @@ player-relative view helper, but keep it in `ai/encoding.py` to keep `engine/` p
   `expectiminimax(depth=1)` — likely tens of thousands of games, an overnight CPU run.
 
 ### Sequencing (each step commits, leaves repo working; compute risk is isolated to step 5)
-1. `ai/encoding.py` — 198 encoding + canonical mirror; tests (length, known positions, flip symmetry). Pure, no training.
-2. `ai/neural_net.py` — NumPy MLP (~80–128 hidden units), sigmoid output, `.npz` save/load; forward-shape + round-trip tests.
-3. `ai/neural_engine.py` — `NeuralEngine.choose_move` (1-ply greedy over the net); register it + benchmark factory; verify plumbing with a random-init net (plays badly, but proves end-to-end + dropdown pickup).
-4. `ai/train_td.py` — TD(λ) self-play loop. **Start with λ=0 (one-step TD)** to de-risk the trace bookkeeping; seeded dice; periodic eval vs `heuristic`/`expectiminimax`; checkpointing.
-5. **Overnight training run** (background) — track win-rate vs `heuristic`, then `expectiminimax`, as it climbs.
+1. **done** — `ai/encoding.py`: 198 encoding + canonical mirror; tests (length, known positions, flip symmetry). Pure, no training.
+2. **done** — `ai/neural_net.py`: NumPy MLP (80 hidden default), sigmoid output, `.npz` save/load; forward/gradient/round-trip tests.
+3. **done** — `ai/neural_engine.py`: `NeuralEngine.choose_move` (1-ply greedy over the net); registered as `neural` + benchmark factory. Confirmed again that the pluggable design holds — "Neural" appeared in the dropdown with zero frontend changes.
+4. **done** — `ai/train_td.py`: TD(λ) self-play loop, seeded dice, eligibility traces, periodic eval, checkpointing (`--resume`, plus a `.best.npz` high-water-mark snapshot), optional linear α decay.
+5. **next — overnight training run** (not yet started). Command and settings under "Training run settings", below.
 6. Commit `ai/weights/td_v1.npz`, register the engine, lock in a benchmark test, verify in browser. Optional freebie: wire the net as an expectiminimax leaf evaluator.
 7. *(If `gnubg` wired up by now)* benchmark vs `gnubg` per the milestone note.
 
+### Findings from the step 1–4 build (2026-09-06)
+
+**The eligibility-trace sign bug — the one real trap, now fixed and pinned by a test.**
+CLAUDE.md originally specified `e ← λ·e + ∇V(s_t)`. That is *wrong* for a side-to-move value
+function; it must be `e ← −λ·e + ∇V(s_t)`. See the corrected TD-update bullet above for the
+derivation. It cost real time and is worth internalizing: **λ=0 hides it completely** (both
+forms collapse to the raw gradient), so the "start at λ=0 to de-risk" advice worked exactly as
+intended — it isolated the bug to the trace bookkeeping rather than the perspective handling.
+The symptom was not a crash or a stalled loss: the sanity gates read a perfect 0.999/0.003 and
+average game length fell from 189 to 54 plies (it had genuinely learned the endgame), while
+win rate against `random` sat at ~50% and against `heuristic` at ~5%. **A net that looks like
+it is learning can still be silently mis-crediting everything before the last ply.**
+
+**Measured effect of the fix**, 60-game evals, α=0.1, 80 hidden:
+
+| config | vs `random` | vs `heuristic` |
+|---|---|---|
+| λ=0.9, buggy `+λ` trace, 4k games | 72% | 5% |
+| λ=0.0 (correct either way), 5k / 10k / 15k games | 100% | 42% / 70% / 65% |
+| λ=0.7, fixed trace, 5k / 10k / 15k games | 98% / 100% / 100% | 63% / 62% / **72%** |
+
+λ=0.7 reaches a useful level faster than λ=0 (63% vs 42% at 5k games), as the theory predicts;
+by 15k they are within the noise floor of a 60-game sample, and **neither had plateaued**. For
+scale: M4's `expectiminimax(depth=1)` beats `heuristic` 65%, so the net was already around that
+level after ~15k games — well before any long run.
+
+**Throughput:** ~25–45 self-play games/s single-process on CPU (it speeds up as the net improves
+and games get shorter — early untrained games drag to the 500-ply cap). An overnight run is
+therefore worth ~1M games, which is TD-Gammon territory; compute is *not* the binding constraint
+here, and `encode()` is already vectorized. Don't bother optimizing further before training.
+
+### Training run settings (step 5)
+
+    cd backend && nohup .venv/bin/python -m ai.train_td \
+      --games 1000000 --lam 0.7 --alpha 0.1 --alpha-final 0.01 --hidden-size 80 --seed 42 \
+      --out ai/weights/td_v1.npz --gate-opponent heuristic \
+      --report-every 5000 --eval-every 25000 --checkpoint-every 5000 \
+      > ~/bgai-overnight-training.log 2>&1 &
+
+Notes: writes straight into `ai/weights/` so the registry picks the checkpoint up on the next
+API start; `td_v1.best.npz` keeps the best-by-gate-opponent snapshot separately, because a long
+TD run's *last* checkpoint isn't reliably its strongest. `--resume` continues from a checkpoint
+if the run dies. Eval overhead is roughly 45 min across a 1M-game run (`expectiminimax` at
+~1.6s/game is the expensive part). The final "is it stronger" claim needs a proper benchmark at
+many more games than the in-training evals — see the noise-floor gotcha.
+
 ### Risks / gotchas
 - **Training compute/time** is the top risk — mitigate with NumPy vectorization, a tiny net, background overnight run, frequent checkpoints.
-- **TD perspective/sign bug** is the classic silent failure — mitigate with the λ=0 start plus sanity gates: value of a nearly-won position → ~1, nearly-lost → ~0, and self-play win-rate vs `random` climbs above 50% early (confirms learning *direction*).
+- **TD perspective/sign bug** is the classic silent failure — this one *did* bite us (the trace sign; see Findings above). The λ=0 start plus the sanity gates worked as designed, but note what they did and didn't catch: value of a nearly-won position → ~1 and nearly-lost → ~0 confirms the *perspective* handling, and says nothing about the *trace*. The signal that exposed the trace bug was win rate vs `heuristic` staying near zero while the sanity gates looked perfect.
 - **Benchmark noise floor** (see M3/M4 notes) — a small round-robin can't rank close engines; require a clear gap or many games before claiming "stronger."
 - **Determinism** — seed both self-play dice and net weight init so training runs reproduce.
 

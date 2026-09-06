@@ -390,18 +390,28 @@ here, and `encode()` is already vectorized. Don't bother optimizing further befo
 
 ### Training run settings (step 5)
 
-    cd backend && nohup .venv/bin/python -m ai.train_td \
+Run this **from a normal terminal, not through Claude Code** — the run should belong to the
+user's own shell rather than an agent session, so nothing about the tooling can interrupt it:
+
+    cd backend && caffeinate -is .venv/bin/python -m ai.train_td \
       --games 1000000 --lam 0.7 --alpha 0.1 --alpha-final 0.01 --hidden-size 80 --seed 42 \
       --out ai/weights/td_v1.npz --gate-opponent heuristic \
       --report-every 5000 --eval-every 25000 --checkpoint-every 5000 \
-      > ~/bgai-overnight-training.log 2>&1 &
+      2>&1 | tee ~/bgai-overnight-training.log
+
+`caffeinate -is` is not optional on macOS: without it the machine sleeps overnight and suspends
+training partway through. (`-i` blocks idle sleep, `-s` blocks system sleep on AC power; closing
+the lid still sleeps regardless, so leave it open.) All progress output is `flush=True`, so it
+streams through the `tee` pipe live instead of sitting in a block buffer.
 
 Notes: writes straight into `ai/weights/` so the registry picks the checkpoint up on the next
 API start; `td_v1.best.npz` keeps the best-by-gate-opponent snapshot separately, because a long
-TD run's *last* checkpoint isn't reliably its strongest. `--resume` continues from a checkpoint
-if the run dies. Eval overhead is roughly 45 min across a 1M-game run (`expectiminimax` at
-~1.6s/game is the expensive part). The final "is it stronger" claim needs a proper benchmark at
-many more games than the in-training evals — see the noise-floor gotcha.
+TD run's *last* checkpoint isn't reliably its strongest. `--resume ai/weights/td_v1.npz`
+continues from the latest checkpoint if the run dies — checkpoints land every 5k games, so at
+most a couple of minutes of work is ever lost. Eval overhead is roughly 45 min across a 1M-game
+run (`expectiminimax` at ~1.6s/game is the expensive part). The final "is it stronger" claim
+needs a proper benchmark at many more games than the in-training evals — see the noise-floor
+gotcha.
 
 ### Risks / gotchas
 - **Training compute/time** is the top risk — mitigate with NumPy vectorization, a tiny net, background overnight run, frequent checkpoints.

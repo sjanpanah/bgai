@@ -56,11 +56,18 @@ _ENGINE_FACTORIES: dict[str, Callable[..., Engine]] = {
 
 @dataclass(frozen=True)
 class Competitor:
-    """An `(engine_id, params)` pair — one entrant in the round-robin."""
+    """An `(engine_id, params)` pair — one entrant in the round-robin.
+
+    `prebuilt` short-circuits the factory with an already-constructed engine.
+    That's for entrants params can't describe — chiefly a partially-trained
+    net still living in memory, which `ai/train_td.py` benchmarks mid-run
+    without having to checkpoint it to disk first.
+    """
 
     engine_id: str
     params: dict = field(default_factory=dict)
     label: str = ""
+    prebuilt: Engine | None = None
 
     def __post_init__(self) -> None:
         if not self.label:
@@ -73,6 +80,8 @@ class Competitor:
         return f"{self.engine_id}[{param_str}]"
 
     def build(self) -> Engine:
+        if self.prebuilt is not None:
+            return self.prebuilt
         return _ENGINE_FACTORIES[self.engine_id](**self.params)
 
 

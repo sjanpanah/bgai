@@ -25,27 +25,27 @@ _POINTS = 24
 _BOARD_FEATURES = _UNITS_PER_POINT * _POINTS * 2  # 192
 
 
-def _point_units(count: int) -> tuple[float, float, float, float]:
-    n = abs(count)
-    return (
-        1.0 if n >= 1 else 0.0,
-        1.0 if n >= 2 else 0.0,
-        1.0 if n >= 3 else 0.0,
-        (n - 3) / 2 if n > 3 else 0.0,
-    )
+def _point_units(counts: np.ndarray) -> np.ndarray:
+    """(24,) non-negative checker counts -> (24, 4) unit block, per the
+    TD-Gammon scheme. Vectorized because this is the training hot path —
+    it runs once per player per candidate move, ~20 candidates per ply."""
+    units = np.empty((_POINTS, _UNITS_PER_POINT), dtype=np.float64)
+    units[:, 0] = counts >= 1
+    units[:, 1] = counts >= 2
+    units[:, 2] = counts >= 3
+    units[:, 3] = np.where(counts > 3, (counts - 3) / 2, 0.0)
+    return units
 
 
 def encode(state: GameState) -> np.ndarray:
     """Raw 198-vector: player 0's checkers/bar/off first, then player 1's,
     then a one-hot for `state.turn` as literally recorded — no mirroring."""
-    features = np.zeros(FEATURE_SIZE, dtype=np.float64)
+    features = np.empty(FEATURE_SIZE, dtype=np.float64)
 
-    for point, count in enumerate(state.board):
-        p0_count = count if count > 0 else 0
-        p1_count = -count if count < 0 else 0
-        features[point * _UNITS_PER_POINT : point * _UNITS_PER_POINT + 4] = _point_units(p0_count)
-        p1_offset = _POINTS * _UNITS_PER_POINT + point * _UNITS_PER_POINT
-        features[p1_offset : p1_offset + 4] = _point_units(p1_count)
+    board = np.asarray(state.board)
+    half = _POINTS * _UNITS_PER_POINT
+    features[:half] = _point_units(np.clip(board, 0, None)).ravel()
+    features[half:_BOARD_FEATURES] = _point_units(np.clip(-board, 0, None)).ravel()
 
     idx = _BOARD_FEATURES
     features[idx] = state.bar[PLAYER_0] / 2

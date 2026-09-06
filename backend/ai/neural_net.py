@@ -10,6 +10,7 @@ forward/backward pair is simpler than fighting one.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -68,9 +69,23 @@ class NeuralNet:
         return dW1, db1, dW2, db2
 
     def save(self, path: str | Path) -> None:
+        """Write the checkpoint atomically: full write to a sibling temp file,
+        then `os.replace` (atomic on POSIX). Training rewrites this file every
+        few thousand games, so a Ctrl+C landing mid-write would otherwise be
+        able to truncate the only copy of the run. With the rename, an
+        interrupted save leaves either the previous checkpoint or the new one,
+        never a half-written file.
+
+        The temp file is opened as a handle rather than passed by name because
+        `np.savez` appends `.npz` to a path argument that lacks it, which would
+        rename the file out from under `os.replace`.
+        """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        np.savez(path, W1=self.W1, b1=self.b1, W2=self.W2, b2=np.array([self.b2]))
+        tmp = path.with_name(path.name + ".tmp")
+        with open(tmp, "wb") as handle:
+            np.savez(handle, W1=self.W1, b1=self.b1, W2=self.W2, b2=np.array([self.b2]))
+        os.replace(tmp, path)
 
     @classmethod
     def load(cls, path: str | Path) -> "NeuralNet":

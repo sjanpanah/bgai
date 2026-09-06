@@ -406,12 +406,22 @@ streams through the `tee` pipe live instead of sitting in a block buffer.
 
 Notes: writes straight into `ai/weights/` so the registry picks the checkpoint up on the next
 API start; `td_v1.best.npz` keeps the best-by-gate-opponent snapshot separately, because a long
-TD run's *last* checkpoint isn't reliably its strongest. `--resume ai/weights/td_v1.npz`
-continues from the latest checkpoint if the run dies — checkpoints land every 5k games, so at
-most a couple of minutes of work is ever lost. Eval overhead is roughly 45 min across a 1M-game
-run (`expectiminimax` at ~1.6s/game is the expensive part). The final "is it stronger" claim
-needs a proper benchmark at many more games than the in-training evals — see the noise-floor
-gotcha.
+TD run's *last* checkpoint isn't reliably its strongest. Eval overhead is roughly 30 min across
+a 1M-game run (`expectiminimax` at ~1.6s/game is the expensive part). At the measured ~45
+games/s the full 1M lands in about 7 hours. The final "is it stronger" claim needs a proper
+benchmark at many more games than the in-training evals (40/40/20) — see the noise-floor gotcha.
+
+**Stopping and resuming.** Ctrl+C is a supported stop, not a crash: the run catches it, saves
+the current net to `--out`, prints the summary, and tells you the exact resume flags. Checkpoint
+writes are atomic (temp file + `os.replace`), so an interrupt can never truncate the checkpoint.
+To continue a stopped run, pass both flags — the second one matters:
+
+    --resume ai/weights/td_v1.npz --games-done <total games already trained>
+
+`--games-done` keeps the α schedule and the dice seeds continuous. Without it a resumed run
+restarts α at its initial value (undoing the annealing) and replays the same games it already
+trained on. This is why the α decay horizon is `--alpha-decay-games` (absolute games) rather
+than a fraction of `--games`: the schedule must not depend on where the run happens to stop.
 
 ### Risks / gotchas
 - **Training compute/time** is the top risk — mitigate with NumPy vectorization, a tiny net, background overnight run, frequent checkpoints.

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from ai.encoding import encode_canonical
 from ai.neural_engine import NeuralEngine
@@ -8,6 +9,7 @@ from ai.train_td import (
     Traces,
     _near_loss_position,
     _near_win_position,
+    alpha_for_game,
     sanity_values,
     self_play_game,
     train,
@@ -127,6 +129,89 @@ def test_near_win_and_near_loss_positions_are_mirror_images():
     win, loss = _near_win_position(), _near_loss_position()
     assert win.turn == loss.turn == PLAYER_0
     assert win.off[0] == loss.off[1] == 14
+
+
+def test_alpha_is_constant_when_no_final_is_set():
+    config = TrainConfig(games=1000, alpha=0.1, alpha_final=None)
+    assert alpha_for_game(config, 0) == 0.1
+    assert alpha_for_game(config, 999) == 0.1
+
+
+def test_alpha_decays_linearly_then_holds():
+    config = TrainConfig(games=1000, alpha=0.1, alpha_final=0.01, alpha_decay_games=1000)
+    assert alpha_for_game(config, 0) == pytest.approx(0.1)
+    assert alpha_for_game(config, 500) == pytest.approx(0.055)
+    assert alpha_for_game(config, 1000) == pytest.approx(0.01)
+    # Held flat past the horizon rather than extrapolated below alpha_final.
+    assert alpha_for_game(config, 5000) == pytest.approx(0.01)
+
+
+def test_alpha_schedule_is_independent_of_the_games_cap():
+    """The decay horizon is absolute, so stopping early or raising --games
+    doesn't move the schedule — the flaw that made --resume re-heat alpha."""
+    short = TrainConfig(games=1000, alpha=0.1, alpha_final=0.01, alpha_decay_games=10_000)
+    long = TrainConfig(games=999_999, alpha=0.1, alpha_final=0.01, alpha_decay_games=10_000)
+    assert alpha_for_game(short, 2500) == alpha_for_game(long, 2500)
+
+
+def test_alpha_decay_horizon_defaults_to_the_games_cap():
+    config = TrainConfig(games=1000, alpha=0.1, alpha_final=0.01)
+    assert alpha_for_game(config, 1000) == pytest.approx(0.01)
+
+
+def test_resume_continues_the_alpha_schedule():
+    """A resumed run must pick alpha up where the previous one left off."""
+    config = TrainConfig(
+        games=500, alpha=0.1, alpha_final=0.01, alpha_decay_games=1000, games_done=500
+    )
+    # First game of the resumed run is game 501 overall, not game 1.
+    assert alpha_for_game(config, config.games_done + 1 - 1) == pytest.approx(0.055)
+
+
+def test_save_is_atomic_and_leaves_no_temp_file(tmp_path):
+    path = tmp_path / "td.npz"
+    NeuralNet(hidden_size=8, seed=1).save(path)
+    NeuralNet(hidden_size=8, seed=2).save(path)  # overwrite an existing checkpoint
+    assert path.exists()
+    assert list(tmp_path.iterdir()) == [path]  # no leftover .tmp
+    assert NeuralNet.load(path).b1.shape == (8,)
+
+
+def test_keyboard_interrupt_saves_and_exits_cleanly(tmp_path, monkeypatch, capsys):
+    """Ctrl+C must be a supported stop, not a crash: the net is saved with
+    every game up to the interrupt, and the caller gets the trained net back
+    rather than a propagating KeyboardInterrupt."""
+    import ai.train_td as train_td
+
+    real_self_play = train_td.self_play_game
+    calls = {"n": 0}
+
+    def interrupting_self_play(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] > 5:
+            raise KeyboardInterrupt
+        return real_self_play(*args, **kwargs)
+
+    monkeypatch.setattr(train_td, "self_play_game", interrupting_self_play)
+
+    out = tmp_path / "td.npz"
+    config = TrainConfig(
+        games=100_000,
+        hidden_size=10,
+        seed=1,
+        report_every=10**9,
+        eval_every=10**9,
+        checkpoint_every=10**9,  # nothing written before the interrupt
+        out=out,
+    )
+    net = train_td.train(config)
+
+    assert isinstance(net, NeuralNet)
+    assert out.exists(), "interrupt must still write the checkpoint"
+    assert NeuralNet.load(out).b1.shape == (10,)
+    output = capsys.readouterr().out
+    assert "interrupted" in output
+    assert "--games-done 6" in output  # tells you how to resume correctly
 
 
 def test_short_training_run_separates_won_from_lost_positions(tmp_path):

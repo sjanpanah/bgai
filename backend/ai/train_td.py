@@ -42,10 +42,23 @@ class TrainConfig:
     games: int = 50_000
     hidden_size: int = DEFAULT_HIDDEN_SIZE
     alpha: float = 0.1
-    # Linearly decays `alpha` -> `alpha_final` across the run when set. A long
-    # run at a fixed alpha keeps taking big steps long after the net is good,
-    # which shows up as the win rate wobbling instead of settling.
+    # Linearly decays `alpha` -> `alpha_final` when set, then holds. A long run
+    # at a fixed alpha keeps taking big steps long after the net is good: every
+    # update is a noisy sample (the dice decide a lot), so the weights orbit the
+    # optimum in a cloud whose width scales with alpha instead of settling into
+    # it. Decaying shrinks that cloud. Note alpha interacts with `lam` — a
+    # higher lambda carries more accumulated credit per update, so the same
+    # alpha is a bigger effective step.
     alpha_final: float | None = None
+    # Games over which that decay happens, in ABSOLUTE games trained — not as a
+    # fraction of `games`. Tying it to `games` would make the schedule depend on
+    # where the run happens to stop, and would silently restart the decay on
+    # every `--resume`. Defaults to `games` so a single uninterrupted run
+    # anneals exactly across itself.
+    alpha_decay_games: int | None = None
+    # Games trained in previous runs, so `--resume` continues the alpha
+    # schedule instead of re-heating it back to the starting alpha.
+    games_done: int = 0
     lam: float = 0.0  # lambda=0 (one-step TD) first — see CLAUDE.md's M5 risks
     seed: int = 42
     max_turns: int = 500
@@ -210,6 +223,28 @@ def sanity_values(net: NeuralNet) -> tuple[float, float]:
     )
 
 
+def alpha_for_game(config: TrainConfig, games_trained: int) -> float:
+    """Learning rate after `games_trained` total games (counting earlier runs).
+
+    Linear from `alpha` to `alpha_final` over `alpha_decay_games`, then held
+    flat. Held rather than extrapolated so overshooting the horizon — easy to
+    do when resuming — can't drive alpha to zero or negative.
+    """
+    if config.alpha_final is None:
+        return config.alpha
+    horizon = config.alpha_decay_games if config.alpha_decay_games is not None else config.games
+    progress = min(games_trained / max(horizon, 1), 1.0)
+    return config.alpha + progress * (config.alpha_final - config.alpha)
+
+
+def _format_duration(seconds: float) -> str:
+    if seconds < 90:
+        return f"{seconds:.0f}s"
+    if seconds < 5400:
+        return f"{seconds / 60:.1f}m"
+    return f"{seconds / 3600:.1f}h"
+
+
 def evaluate(net: NeuralNet, opponent_id: str, games: int, seed: int) -> float:
     """Head-to-head win rate of the current net against a registry engine,
     seats alternating. Goes through the normal benchmark harness so training
@@ -237,68 +272,100 @@ def train(config: TrainConfig) -> NeuralNet:
     total_plies = 0
     best_gate_rate = -1.0
 
+    # Throughput is reported over the window since the last report line, not
+    # cumulatively since launch. Self-play speed climbs a lot as the net
+    # improves (a weak net drags games out toward the ply cap), so a
+    # cumulative rate stays badly stale for thousands of games. The window
+    # anchors are also reset after each eval so benchmark time — which is
+    # lumpy and not proportional to games — never lands in the game rate.
+    window_game = 0
+    window_time = started
+    window_plies = 0
+
     print(
         f"training {config.games} games | hidden={config.hidden_size} "
-        f"alpha={config.alpha} lambda={config.lam} seed={config.seed}",
+        f"alpha={config.alpha} lambda={config.lam} seed={config.seed}"
+        + (f" | resuming from {config.games_done} games trained" if config.games_done else ""),
         flush=True,
     )
 
-    for game in range(1, config.games + 1):
-        if config.alpha_final is None:
-            alpha = config.alpha
-        else:
-            progress = (game - 1) / max(config.games - 1, 1)
-            alpha = config.alpha + progress * (config.alpha_final - config.alpha)
+    game = 0
+    interrupted = False
+    try:
+        for game in range(1, config.games + 1):
+            # Seeds continue past previous runs so a resumed run doesn't replay
+            # the same games it already trained on.
+            games_trained = config.games_done + game - 1
+            alpha = alpha_for_game(config, games_trained)
 
-        winner, _, plies = self_play_game(
-            net,
-            engine,
-            traces,
-            seed=config.seed + game,
-            alpha=alpha,
-            lam=config.lam,
-            max_turns=config.max_turns,
-        )
-        total_plies += plies
-        if winner is None:
-            unfinished += 1
-        else:
-            wins[winner] += 1
-
-        if game % config.report_every == 0:
-            near_win, near_loss = sanity_values(net)
-            elapsed = time.time() - started
-            print(
-                f"[{game:>7}] {game / elapsed:5.1f} games/s | "
-                f"avg plies {total_plies / game:5.1f} | "
-                f"p0 wins {wins[0] / max(sum(wins), 1):.2f} | "
-                f"sanity win/loss {near_win:.3f}/{near_loss:.3f}"
-                + (f" | unfinished {unfinished}" if unfinished else ""),
-                flush=True,
+            winner, _, plies = self_play_game(
+                net,
+                engine,
+                traces,
+                seed=config.seed + games_trained,
+                alpha=alpha,
+                lam=config.lam,
+                max_turns=config.max_turns,
             )
+            total_plies += plies
+            if winner is None:
+                unfinished += 1
+            else:
+                wins[winner] += 1
 
-        if game % config.eval_every == 0:
-            for opponent_id, eval_games in config.eval_opponents:
-                rate = evaluate(net, opponent_id, eval_games, seed=config.seed + game)
-                marker = ""
-                if opponent_id == config.gate_opponent and rate > best_gate_rate:
-                    best_gate_rate = rate
-                    net.save(config.best_out)
-                    marker = "  <- best so far"
+            if game % config.report_every == 0:
+                near_win, near_loss = sanity_values(net)
+                now = time.time()
+                window_games = game - window_game
+                rate = window_games / max(now - window_time, 1e-9)
                 print(
-                    f"[{game:>7}] vs {opponent_id}: {rate:.0%} of {eval_games}{marker}",
+                    f"[{game:>7}/{config.games} {game / config.games:5.1%}] "
+                    f"{rate:5.1f} games/s | "
+                    f"elapsed {_format_duration(now - started):>6} | "
+                    f"avg plies {(total_plies - window_plies) / window_games:5.1f} | "
+                    f"p0 wins {wins[0] / max(sum(wins), 1):.2f} | "
+                    f"alpha {alpha:.3f} | "
+                    f"sanity win/loss {near_win:.3f}/{near_loss:.3f}"
+                    + (f" | unfinished {unfinished}" if unfinished else ""),
                     flush=True,
                 )
+                window_game, window_time, window_plies = game, now, total_plies
 
-        if game % config.checkpoint_every == 0:
-            net.save(config.out)
+            if game % config.eval_every == 0:
+                for opponent_id, eval_games in config.eval_opponents:
+                    rate = evaluate(net, opponent_id, eval_games, seed=config.seed + game)
+                    marker = ""
+                    if opponent_id == config.gate_opponent and rate > best_gate_rate:
+                        best_gate_rate = rate
+                        net.save(config.best_out)
+                        marker = "  <- best so far"
+                    print(
+                        f"[{game:>7}] vs {opponent_id}: {rate:.0%} of {eval_games}{marker}",
+                        flush=True,
+                    )
+                # Re-anchor so the benchmark games above aren't charged to the
+                # next window's self-play rate.
+                window_game, window_time, window_plies = game, time.time(), total_plies
+
+            if game % config.checkpoint_every == 0:
+                net.save(config.out)
+    except KeyboardInterrupt:
+        # Ctrl+C is a supported way to stop: fall through to the same final
+        # save as a completed run, so you keep every game up to the interrupt
+        # rather than rewinding to the last periodic checkpoint.
+        interrupted = True
+        print("\ninterrupted — saving current net", flush=True)
 
     net.save(config.out)
+    total_trained = config.games_done + game
     print(
-        f"done in {(time.time() - started) / 60:.1f} min -> {config.out}"
+        f"{'stopped' if interrupted else 'done'} after {game} games "
+        f"({total_trained} total) in {_format_duration(time.time() - started)} -> {config.out}"
         + (f" (best vs {config.gate_opponent}: {best_gate_rate:.0%})" if best_gate_rate >= 0 else ""),
         flush=True,
     )
+    if interrupted:
+        print(f"resume with: --resume {config.out} --games-done {total_trained}", flush=True)
     return net
 
 
@@ -310,6 +377,18 @@ def main() -> None:
     parser.add_argument("--alpha", type=float, default=defaults.alpha)
     parser.add_argument(
         "--alpha-final", type=float, default=None, help="linearly decay alpha to this value"
+    )
+    parser.add_argument(
+        "--alpha-decay-games",
+        type=int,
+        default=None,
+        help="absolute games to decay alpha over, then hold (default: --games)",
+    )
+    parser.add_argument(
+        "--games-done",
+        type=int,
+        default=0,
+        help="games trained in previous runs; continues the alpha schedule and dice seeds",
     )
     parser.add_argument("--lam", type=float, default=defaults.lam)
     parser.add_argument("--seed", type=int, default=defaults.seed)
@@ -327,6 +406,8 @@ def main() -> None:
             hidden_size=args.hidden_size,
             alpha=args.alpha,
             alpha_final=args.alpha_final,
+            alpha_decay_games=args.alpha_decay_games,
+            games_done=args.games_done,
             lam=args.lam,
             seed=args.seed,
             out=args.out,

@@ -31,6 +31,15 @@ if it needs more.
   `selectableDestinations` is empty mid-drag and you drag blind. Fix by lifting the drag source
   into the same selection state rather than duplicating the highlight logic: click and drag
   having separate sources of truth is what produced the M2-era highlight bug too
+- Surface the running git commit so a deployed instance's code can be confirmed without
+  guessing — a backend endpoint (e.g. `GET /version`) plus a small footer/about display in the
+  UI showing what's actually live on Render/Pages vs. what's committed locally
+- Make the app responsive / usable on mobile browsers — untested so far. Partly there already
+  (viewport meta tag is set, the board is an SVG with a `viewBox` so it should scale down), but
+  there are zero breakpoints anywhere in the layout (header row, roll/history row are plain
+  flexbox and will likely squeeze badly on a narrow screen) and touch input on the board has
+  never been checked — the checker points are close together and may need larger tap targets
+  for a finger rather than a mouse cursor
 
 - Add a `wildbg` engine (open-source neural reference, HTTP API in local Docker) — plan drafted,
   needs strong nets from the `nets` branch swapped in before build since they're `include_bytes!`d

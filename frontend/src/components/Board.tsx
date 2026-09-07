@@ -62,10 +62,16 @@ export function Board({
   const pointerDownClient = useRef<{ x: number; y: number } | null>(null);
   const pointerDownIdx = useRef<number | null>(null);
 
+  // Destinations outrank sources: a point can be both (moving onto your own
+  // occupied point is legal and common), and if the generic "you could pick
+  // this up" green wins, the selected checker's actual legal destination is
+  // invisible. With one die left that can hide *every* destination, making a
+  // playable turn look frozen — and since the turn can't complete, the AI
+  // never gets to move either.
   const highlightFor = (idx: number) => {
     if (idx === selectedSource) return "#facc15";
-    if (selectableSources.includes(idx)) return "#4ade80";
     if (selectableDestinations.includes(idx)) return "#60a5fa";
+    if (selectableSources.includes(idx)) return "#4ade80";
     return "none";
   };
 

@@ -9,3 +9,6 @@ node_modules/
 dist/
 build/
 .env
+
+# training artifact only, not a shipped checkpoint — see CLAUDE.md's M5 plan
+backend/ai/weights/td_v1.best.npz

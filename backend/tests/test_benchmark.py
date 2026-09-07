@@ -25,3 +25,17 @@ def test_expectiminimax_beats_heuristic_head_to_head():
     heuristic_wins = sum(results["heuristic"].values())
 
     assert expectiminimax_wins > heuristic_wins
+
+
+def test_neural_beats_expectiminimax_head_to_head():
+    # M5's real test suite: the trained TD net (loaded from the committed
+    # ai/weights/td_v1.npz checkpoint via the "neural" registry entry) must
+    # clearly outplay expectiminimax. A post-training benchmark measured this
+    # at 77.5% over 200 games (95% CI 71.7-83.3%) — 20 games here is just
+    # enough to be non-flaky at that true rate without slowing the suite by
+    # expectiminimax's ~1.6s/game.
+    results = round_robin(["neural", "expectiminimax"], games_per_matchup=20, seed=0)
+    neural_wins = sum(results["neural"].values())
+    expectiminimax_wins = sum(results["expectiminimax"].values())
+
+    assert neural_wins > expectiminimax_wins

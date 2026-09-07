@@ -21,8 +21,14 @@ stronger engines are plugged in underneath without the frontend changing.
 
 The single most important design rule. There is ONE engine interface:
 
-    choose_move(state: GameState, dice: Dice) -> Move
+    choose_move(state: GameState,
+                dice: tuple[int, int],
+                legal_sequences: list[list[Move]]) -> list[Move]
     # (plus offer/accept for the doubling cube post-1.0 — see Future ideas)
+
+Callers generate `legal_sequences` via `engine.moves.legal_turn_sequences` and pass them
+in, so every engine shares one source of truth for legality and never reimplements it. A
+"move" is a full turn — the list of single-die steps — not one step.
 
 Every AI is an implementation of it. The UI has a dropdown that names the active
 engine; the API takes an optional `engine` query param (default = strongest shipped).
@@ -84,6 +90,21 @@ we justify that each new engine is actually stronger.
   every ply, is the bottleneck, not the candidate cap. Don't round-robin `depth=2` at a normal
   `games_per_matchup` without first speeding up the search (transposition tables, tighter
   pruning, or a compiled hot path) — a 20-game matchup would take on the order of 15 minutes.
+- **Sample sizes that actually resolve anything (M5):** the in-training evals (20–60 games)
+  swung between 60% and 90% on a net that was barely changing — pure noise, and they misled us
+  repeatedly. At 20 games the standard error is ~10 points. Use **200+ games** before believing
+  any difference, and quote a confidence interval alongside the rate. Corollary: never pick a
+  checkpoint by taking the max over noisy evals (see the `.best.npz` winner's-curse note in M5).
+- **Grading move choice directly (M5), not just win rate.** Win rate needs hundreds of games
+  because one game yields one bit. A far denser signal: take real positions, rollout-grade
+  *every* legal turn sequence with `ai/rollout.py`, and measure how often an engine picks the
+  best one and how much equity it forfeits when it doesn't. Twelve positions separated all three
+  engines clearly. Two things make small rollout counts usable: **common random numbers** (roll
+  every candidate in a position out on the same dice seeds, so the comparison is paired and dice
+  luck cancels) and grading every engine on the **same** positions. Caveat: the oracle is only as
+  good as its playout policy — ours is `HeuristicEngine`, so "truth" is tilted toward the eval
+  that `heuristic` and `expectiminimax` optimize. That biases *against* a fair reading for
+  `neural`, which is why it winning anyway was meaningful.
 
 ---
 
@@ -277,17 +298,59 @@ The numbered milestones drive toward a **1.0** release. Everything past that is 
 | M2 | Playable UI vs random | done | Full board, click-to-move, play a full game vs `random` engine |
 | M3 | Heuristic engine | done | `heuristic` engine + working UI selector |
 | M4 | Expectiminimax + rollouts | done | `expectiminimax` engine, benchmarked vs heuristic |
-| M5 | Neural engine | next | TD-Gammon-style self-play engine, benchmarked vs expectiminimax and (if wired up by now) `gnubg` |
+| M5 | Neural engine | done | TD-Gammon-style self-play engine; beats `expectiminimax` 77.5% over 200 games |
 
-That's 1.0.
+That's 1.0 — all five milestones are shipped. Remaining work is the BACKLOG (UI polish and
+robustness) plus the post-1.0 ideas below; `gnubg` was never wired up, so the engine's
+*absolute* strength is still unmeasured (see the M5 results).
 
 ---
 
-## M5 build plan (neural engine) — the active milestone
+## M5 (neural engine) — shipped 2026-09-07
 
-TD-Gammon-style self-play value network, shipped behind the same `choose_move` interface.
-This section is the working spec so the milestone can be picked up across separate threads;
-update it as steps land. Decisions below are settled — don't relitigate them without reason.
+TD-Gammon-style self-play value network, behind the same `choose_move` interface. Kept as a
+full record rather than trimmed: the trace-sign derivation and the measured findings below are
+the expensive parts, and anyone retraining the net or attempting the stretch experiment needs
+them. **Results first, then the spec that produced them.**
+
+### Results
+
+Shipped net: `ai/weights/td_v1.npz`, 80 hidden units, λ=0.7, seed 42, **510k self-play games**
+in 5.2h (~28 games/s, ~56–65 plies/game). Stopped manually at 510k of a configured 1M.
+
+Post-training benchmark, far above the in-training eval sample sizes, 95% CIs:
+
+| matchup | games | win rate |
+|---|---|---|
+| vs `expectiminimax` | 200 | **77.5% ±5.8%** |
+| vs `heuristic` | 300 | 84.7% ±4.1% |
+| vs `random` | 200 | 99.5% ±1.0% |
+| final-510k vs best-125k | 300 | 54.3% ±5.6% (interval spans 50%) |
+
+**It plateaued early — by ~125k games.** The last line is the important one: the 510k net and
+the 125k net are statistically indistinguishable, and they score 77.5% vs 79.5% against a common
+opponent. Roughly 385k games bought nothing measurable. That matches the capacity argument for
+an 80-hidden-unit net, and it means **more self-play is the one thing not worth doing** — future
+gains have to come from architecture (more hidden units, gammon-aware output head, or using the
+net as an `expectiminimax` leaf evaluator), not compute.
+
+**Move quality vs a rollout oracle** (12 positions, every legal sequence rolled out 25× with
+common random numbers; see the harness note below):
+
+| engine | picks rollout-best | mean equity lost/move |
+|---|---|---|
+| `neural` | 67% | **0.053** |
+| `heuristic` | 42% | 0.203 |
+| `expectiminimax` | 33% | 0.240 |
+
+Notable because the oracle's playout policy is `HeuristicEngine` — the very eval `heuristic` and
+`expectiminimax` optimize — so the yardstick was tilted toward the net's opponents and it won
+anyway. Absolute strength remains unknown without `gnubg`.
+
+**A loose end for anyone retraining:** the α schedule never finished. `--alpha-decay-games`
+defaulted to `--games` (1M), so stopping at 510k left α at ~0.055 instead of the intended 0.01 —
+the net shipped without its annealing phase. A rerun should either train to completion or set
+`--alpha-decay-games` to the games actually intended. Whether full annealing helps is untested.
 
 ### The core realization
 `NeuralEngine` is architecturally identical to `HeuristicEngine`: **1-ply greedy** over
@@ -345,9 +408,16 @@ player-relative view helper, but keep it in `ai/encoding.py` to keep `engine/` p
 2. **done** — `ai/neural_net.py`: NumPy MLP (80 hidden default), sigmoid output, `.npz` save/load; forward/gradient/round-trip tests.
 3. **done** — `ai/neural_engine.py`: `NeuralEngine.choose_move` (1-ply greedy over the net); registered as `neural` + benchmark factory. Confirmed again that the pluggable design holds — "Neural" appeared in the dropdown with zero frontend changes.
 4. **done** — `ai/train_td.py`: TD(λ) self-play loop, seeded dice, eligibility traces, periodic eval, checkpointing (`--resume`, plus a `.best.npz` high-water-mark snapshot), optional linear α decay.
-5. **next — overnight training run** (not yet started). Command and settings under "Training run settings", below.
-6. Commit `ai/weights/td_v1.npz`, register the engine, lock in a benchmark test, verify in browser. Optional freebie: wire the net as an expectiminimax leaf evaluator.
-7. *(If `gnubg` wired up by now)* benchmark vs `gnubg` per the milestone note.
+5. **done** — training run: 510k games in 5.2h, stopped manually. Settings under "Training run settings", below.
+6. **done** — committed `ai/weights/td_v1.npz`, registered as `neural`, locked in `test_neural_beats_expectiminimax_head_to_head`, verified in the browser (which surfaced a board bug — see below). *Not done, still free:* wiring the net as an `expectiminimax` leaf evaluator.
+7. **not done** — `gnubg` was never wired up, so there is still no absolute strength reference. A `wildbg` alternative is drafted in BACKLOG.md.
+
+**Browser verification earned its place.** It surfaced a `Board.tsx` highlight bug that had been
+live since M2 and that no test caught: destination highlighting lost to source highlighting, so a
+legal destination that was *also* a legal source rendered as a generic selectable point. With one
+die left that could hide every destination, making a playable turn look frozen — and since a turn
+can't be abandoned, the AI then appeared to stop moving. Engine-vs-engine benchmarks are blind to
+this entire class of bug; only playing a real game in a browser finds it.
 
 ### Findings from the step 1–4 build (2026-09-06)
 
@@ -408,9 +478,20 @@ streams through the `tee` pipe live instead of sitting in a block buffer.
 Notes: writes straight into `ai/weights/` so the registry picks the checkpoint up on the next
 API start; `td_v1.best.npz` keeps the best-by-gate-opponent snapshot separately, because a long
 TD run's *last* checkpoint isn't reliably its strongest. Eval overhead is roughly 30 min across
-a 1M-game run (`expectiminimax` at ~1.6s/game is the expensive part). At the measured ~45
-games/s the full 1M lands in about 7 hours. The final "is it stronger" claim needs a proper
-benchmark at many more games than the in-training evals (40/40/20) — see the noise-floor gotcha.
+a 1M-game run (`expectiminimax` at ~1.6s/game is the expensive part). The final "is it stronger"
+claim needs a proper benchmark at many more games than the in-training evals (40/40/20) — see
+the noise-floor gotcha.
+
+**Actuals from the real run** (correcting the pre-run estimates): sustained **~28 games/s**, not
+the ~45 the short test runs suggested — those had ~44-ply games, while a trained net produced
+~56–65-ply games, so games-per-second fell even though plies-per-second was comparable. Budget
+~10h for 1M games, not 7. Games *shorten* as the net improves early (189 → ~55 plies) then settle.
+
+**`td_v1.best.npz` picked a worse checkpoint than the final one**, and the mechanism is worth
+knowing: the gate saves on any new high-water mark against a 40-game eval, so it selects *lucky
+samples*, not genuinely stronger nets — the winner's curse. It latched onto a 125k checkpoint
+that scored 92% and never beat that noise spike again. Treat `.best.npz` as a crash-insurance
+snapshot, not a ranking; re-benchmark candidates properly before shipping either.
 
 **Stopping and resuming.** Ctrl+C is a supported stop, not a crash: the run catches it, saves
 the current net to `--out`, prints the summary, and tells you the exact resume flags. Checkpoint
@@ -430,9 +511,11 @@ than a fraction of `--games`: the schedule must not depend on where the run happ
 - **Benchmark noise floor** (see M3/M4 notes) — a small round-robin can't rank close engines; require a clear gap or many games before claiming "stronger."
 - **Determinism** — seed both self-play dice and net weight init so training runs reproduce.
 
-### Stretch experiment: hand-crafted features (post-baseline, optional)
-Not part of M5's pass/fail bar — only attempt after the raw-198 net is trained and beats
-`expectiminimax`, so it has a fixed, working baseline to A/B against (sidesteps the M3 self-play
+### Stretch experiment: hand-crafted features (post-baseline, optional) — now unblocked
+Its precondition is met: the raw-198 net is trained, shipped, and beats `expectiminimax`, so
+there is now a fixed baseline to A/B against. Note the plateau result above reframes this — since
+more training buys nothing, richer features are one of the few remaining levers that might.
+Not part of M5's pass/fail bar — attempt only against that fixed, working baseline (sidesteps the M3 self-play
 noise-floor lesson: comparing an addition against a held-fixed reference, not two similar nets
 guessed against each other). Design `ai/encoding.py` so enhanced features **append** to the base
 198 vector (net input dim is a param) — the experiment is then a different feature function plus
@@ -500,5 +583,6 @@ history log in standard notation (e.g. `31: 8/5 6/5`).
 - Do not add engines that bypass the `choose_move` interface
 - Do not change the API response shapes — they are the contract
 - Do not build the doubling cube in v1.0 — it's post-1.0 (1.1)
-- Do not add ML tooling (PyTorch/NumPy) before the neural milestone
+- Do not add PyTorch or other heavy ML tooling — NumPy landed with M5 and is enough for the
+  net we ship; anything bigger needs discussing first. NumPy stays in `ai/` only
 - Do not add a component library without discussing first

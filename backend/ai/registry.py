@@ -25,18 +25,22 @@ class EngineEntry:
     engine: Engine
 
 
+# Labels are "<difficulty> (<algorithm>)": the difficulty is what a player picking
+# an opponent actually cares about, the algorithm names what's under it. Difficulty
+# order tracks measured head-to-head strength (see CLAUDE.md's M3/M4 findings), not
+# the ladder position — so it has to be revisited if a benchmark result moves.
 _ENGINES: dict[str, EngineEntry] = {
-    "random": EngineEntry(id="random", label="Random", engine=RandomEngine()),
-    "heuristic": EngineEntry(id="heuristic", label="Heuristic", engine=HeuristicEngine()),
+    "random": EngineEntry(id="random", label="Trivial (Random)", engine=RandomEngine()),
+    "heuristic": EngineEntry(id="heuristic", label="Easy (Heuristic)", engine=HeuristicEngine()),
     # depth=1, candidates=8: fast enough to stay interactive. Heavier settings
     # (deeper search, rollouts) are harness-only — see ai/benchmark.py.
     "expectiminimax": EngineEntry(
-        id="expectiminimax", label="Expectiminimax", engine=ExpectiminimaxEngine()
+        id="expectiminimax", label="Medium (Expectimax)", engine=ExpectiminimaxEngine()
     ),
     # Loads ai/weights/td_v1.npz if it's been trained yet; falls back to a
     # random-init net otherwise (plays badly, but keeps the dropdown entry
     # and API plumbing working end-to-end before training lands).
-    "neural": EngineEntry(id="neural", label="Neural", engine=NeuralEngine()),
+    "neural": EngineEntry(id="neural", label="Very Hard (Neural Network)", engine=NeuralEngine()),
 }
 
 

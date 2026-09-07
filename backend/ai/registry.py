@@ -15,7 +15,9 @@ from ai.heuristic_engine import HeuristicEngine
 from ai.neural_engine import NeuralEngine
 from ai.random_engine import RandomEngine
 
-DEFAULT_ENGINE_ID = "random"
+# The strongest shipped engine, not the weakest: a player who doesn't pick an
+# opponent should get a real game. `random` stays the explicit choice for testing.
+DEFAULT_ENGINE_ID = "neural"
 
 
 @dataclass(frozen=True)

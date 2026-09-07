@@ -23,7 +23,7 @@ function App() {
     human,
   } = useGame();
   const engines = useEngines();
-  const [selectedEngine, setSelectedEngine] = useState("random");
+  const [selectedEngine, setSelectedEngine] = useState("neural");
   const [selectedSource, setSelectedSource] = useState<number | null>(null);
   const { displayState, flight } = useAnimatedBoard(state, turnAnimation);
 

@@ -25,7 +25,7 @@ The single most important design rule. There is ONE engine interface:
     # (plus offer/accept for the doubling cube post-1.0 — see Future ideas)
 
 Every AI is an implementation of it. The UI has a dropdown that names the active
-engine; the API takes an optional `engine` query param (default = weakest available).
+engine; the API takes an optional `engine` query param (default = strongest shipped).
 Adding a new engine must never require touching the frontend or the rules engine.
 
 Planned engine ladder (rough order of increasing strength — a guide, not a rigid gate;
@@ -241,7 +241,8 @@ stance is the main thing that sets this foundation apart. Don't drop it.
     GET  /engines         -> [ { id, label, available } ]   # powers UI dropdown
     POST /engine/move     -> { move }                       # stateless: no game_id
 
-`engine` is an optional param defaulting to the weakest available engine. Adding
+`engine` is an optional param defaulting to the strongest shipped engine (`neural`),
+so an unspecified opponent is a real game rather than a test stub. Adding
 engines is additive and backwards-compatible — the frontend never needs updating.
 
 The server holds game state keyed by `game_id` and is authoritative for legality —

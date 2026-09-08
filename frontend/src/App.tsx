@@ -50,7 +50,7 @@ function App() {
     backendVersion.commit !== FRONTEND_COMMIT;
   const [selectedEngine, setSelectedEngine] = useState(readStoredEngine);
   const [selectedSource, setSelectedSource] = useState<number | null>(null);
-  const { displayState, flight } = useAnimatedBoard(state, turnAnimation);
+  const { displayState, flight } = useAnimatedBoard(state, turnAnimation, human);
 
   useEffect(() => {
     try {

@@ -18,11 +18,12 @@ export interface Flight {
 }
 
 const HOP_DURATION_MS = 350;
+const AI_HOP_DURATION_MS = 700;
 
 export function useAnimatedBoard(
   state: GameState | null,
   turn: TurnAnimation | null,
-  speedMs: number = HOP_DURATION_MS,
+  humanPlayer: number,
 ) {
   const [displayState, setDisplayState] = useState<GameState | null>(state);
   const [flight, setFlight] = useState<Flight | null>(null);
@@ -71,7 +72,8 @@ export function useAnimatedBoard(
       const move = t.moves[i];
       const isLast = i === t.moves.length - 1;
       const after = isLast ? t.finalState : applyVisualMove(board, move, t.player);
-      await animateHop(t.player, move.source, move.target, board);
+      const speedMs = t.player === humanPlayer ? HOP_DURATION_MS : AI_HOP_DURATION_MS;
+      await animateHop(t.player, move.source, move.target, board, speedMs);
       setDisplay(after);
       board = after;
     }
@@ -83,6 +85,7 @@ export function useAnimatedBoard(
     source: number,
     target: number,
     boardBeforeHop: GameState,
+    speedMs: number,
   ): Promise<void> {
     setDisplay(liftOne(boardBeforeHop, source, player));
 

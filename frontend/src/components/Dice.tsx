@@ -24,16 +24,29 @@ function randomValue(): number {
   return 1 + Math.floor(Math.random() * 6);
 }
 
-function Die({ value, settled }: { value: number; settled: boolean }) {
+// A static, unanimated die face — used wherever a past roll is displayed
+// (e.g. the move history log) rather than the live roll-in-progress.
+export function DieFace({ value, size = 48 }: { value: number; size?: number }) {
   return (
     <div
-      className={`grid grid-cols-3 grid-rows-3 gap-0.5 w-12 h-12 bg-white border border-gray-400 rounded-md p-1.5 transition-transform duration-150 ${
-        settled ? "scale-100 rotate-0" : "scale-90 rotate-6"
-      }`}
+      className="grid grid-cols-3 grid-rows-3 bg-white border border-gray-400 rounded-md"
+      style={{ width: size, height: size, gap: size / 24, padding: size / 8 }}
     >
       {pips(value).map((on, i) => (
         <div key={i} className={`rounded-full ${on ? "bg-gray-800" : ""}`} />
       ))}
+    </div>
+  );
+}
+
+function Die({ value, settled }: { value: number; settled: boolean }) {
+  return (
+    <div
+      className={`transition-transform duration-150 ${
+        settled ? "scale-100 rotate-0" : "scale-90 rotate-6"
+      }`}
+    >
+      <DieFace value={value} />
     </div>
   );
 }

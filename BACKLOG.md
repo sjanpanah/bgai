@@ -29,6 +29,12 @@ if it needs more.
 - Make the opponent's move animation longer — it currently runs at the same speed as the
   human's, which is too fast to follow when you didn't choose the move yourself
 - Add a pip counter to the board (both sides)
+- Show a subdued preview of every legal destination this turn (union across all sources) as
+  soon as dice are rolled, before any source is selected/hovered/dragged — today
+  `selectableDestinations` is empty until a source is picked, so only the green "movable
+  checker" hint shows up front. Needs deciding: does the subdued hint disappear once a source
+  is selected (leaving just the current bright-blue per-source highlight), or stay visible
+  alongside it; and what the subdued color/opacity should be relative to the current `#60a5fa`
 - Make the app responsive / usable on mobile browsers — untested so far. Partly there already
   (viewport meta tag is set, the board is an SVG with a `viewBox` so it should scale down), but
   there are zero breakpoints anywhere in the layout (header row, roll/history row are plain

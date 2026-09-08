@@ -43,6 +43,8 @@ if it needs more.
 - Hide the "New game" button if the opponent hasn't changed and the first roll hasn't been
   made — at that point a fresh game is identical to the one already in progress, so the button
   is a no-op that just invites an accidental reset
+- Mark dice used during a turn — once a die's move has been played, visually distinguish it
+  (e.g. dim/strike it out) from dice still available, so mid-turn it's obvious what's left to play
 
 ### Features
 

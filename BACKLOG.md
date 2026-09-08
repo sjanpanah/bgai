@@ -20,6 +20,12 @@ if it needs more.
 - Do a full UI review — walk the whole app in a browser and write down what looks or feels
   off (visual polish, spacing/alignment, colour and contrast, wording, affordances, empty and
   error states), then triage the findings back into this section as individual items
+- Unify colors across the app — right now colors get picked ad hoc per feature (e.g. the move
+  history log shipped with placeholder blue/green for AI/You that don't match the app's actual
+  brown/cream palette or the board's checker colors). Needs one deliberate pass: decide how
+  player identity (AI vs You) is color-coded — text label, and whether the opponent's dice get
+  a distinct face color from the player's own (white) dice — and apply it consistently anywhere
+  player identity shows up (history log, future opponent-dice display, etc.)
 - Auto-roll dice after the first roll of a turn (currently every roll needs a manual click)
 - Improve the move history section (better formatting/readability, not just a flat log)
 - Show the opponent's dice, and keep them visible alongside its last move — right now the AI's
@@ -50,6 +56,8 @@ if it needs more.
 
 ### Docs / process
 
+- Revamp the term "AI" across the project — UI copy, code, docs all just say "AI"/"the AI";
+  reconsider the naming (engine name, opponent name, etc.) project-wide
 - Rewrite the README — it's stale and undersells the project. Says M5 is "next", omits `neural`
   from the engine list entirely, and documents the old wrong `choose_move(state, dice) -> Move`
   signature. Should add: the live demo link (note Render's free tier cold-starts, ~30s first

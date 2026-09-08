@@ -43,6 +43,9 @@ export function useGame() {
   const [gameId, setGameId] = useState<string | null>(null);
   const [state, setState] = useState<GameState | null>(null);
   const [dice, setDice] = useState<[number, number] | null>(null);
+  // Dice not yet spent this turn (four entries for doubles) — lets the UI
+  // strike out a die's face once its move has been played.
+  const [remainingDice, setRemainingDice] = useState<number[]>([]);
   const [legalMoves, setLegalMoves] = useState<Move[]>([]);
   const [combinedMoves, setCombinedMoves] = useState<CombinedMove[]>([]);
   const [turnMoves, setTurnMoves] = useState<Move[]>([]);
@@ -115,6 +118,7 @@ export function useGame() {
         // Forced dance: no legal entry/move at all: the turn already passed
         // server-side, so there's nothing to play.
         setDice(null);
+        setRemainingDice([]);
         setLegalMoves([]);
         setCombinedMoves([]);
         setHistory((h) => [
@@ -128,6 +132,7 @@ export function useGame() {
         return;
       }
       setDice(body.dice);
+      setRemainingDice(body.remaining_dice ?? []);
       setLegalMoves(body.legal_moves);
       setCombinedMoves(body.combined_moves ?? []);
       setTurnMoves([]);
@@ -149,6 +154,7 @@ export function useGame() {
       state: GameState;
       legal_moves: Move[];
       combined_moves?: CombinedMove[];
+      remaining_dice?: number[];
       game_over?: GameOver | null;
     },
     dice: [number, number],
@@ -165,6 +171,7 @@ export function useGame() {
     });
     setLegalMoves(body.legal_moves);
     setCombinedMoves(body.combined_moves ?? []);
+    setRemainingDice(body.remaining_dice ?? []);
     if (body.legal_moves.length === 0) {
       setHistory((h) => [
         ...h,
@@ -285,6 +292,7 @@ export function useGame() {
     gameId,
     state,
     dice,
+    remainingDice,
     legalMoves,
     combinedMoves,
     gameOver,

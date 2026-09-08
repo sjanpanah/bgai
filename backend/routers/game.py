@@ -102,6 +102,7 @@ def roll(game_id: str) -> RollResponse:
         dice=dice,
         legal_moves=_as_models(next_moves),
         combined_moves=_combined_as_models(combos),
+        remaining_dice=values,
         state=session.state.to_dict(),
     )
 
@@ -135,7 +136,12 @@ def move(game_id: str, body: MoveRequest) -> MoveResponse:
         session.remaining_dice = None
         if game_over is None:
             session.state.turn = 1 - player
-        return MoveResponse(state=session.state.to_dict(), legal_moves=[], game_over=game_over)
+        return MoveResponse(
+            state=session.state.to_dict(),
+            legal_moves=[],
+            remaining_dice=[],
+            game_over=game_over,
+        )
 
     session.remaining_dice = remaining
     combos = compute_combined_moves(session.state, player, remaining)
@@ -143,6 +149,7 @@ def move(game_id: str, body: MoveRequest) -> MoveResponse:
         state=session.state.to_dict(),
         legal_moves=_as_models(next_moves),
         combined_moves=_combined_as_models(combos),
+        remaining_dice=remaining,
         game_over=None,
     )
 

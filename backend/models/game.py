@@ -40,6 +40,7 @@ class RollResponse(BaseModel):
     dice: tuple[int, int]
     legal_moves: list[MoveModel]
     combined_moves: list[CombinedMoveModel] = []
+    remaining_dice: list[int] = []
     state: GameStateModel
 
 
@@ -51,6 +52,7 @@ class MoveResponse(BaseModel):
     state: GameStateModel
     legal_moves: list[MoveModel]
     combined_moves: list[CombinedMoveModel] = []
+    remaining_dice: list[int] = []
     game_over: GameOverModel | None = None
 
 

@@ -27,6 +27,7 @@ function App() {
     gameId,
     state,
     dice,
+    remainingDice,
     legalMoves,
     combinedMoves,
     gameOver,
@@ -276,7 +277,7 @@ function App() {
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Dice dice={dice} />
+          <Dice dice={dice} remainingDice={remainingDice} />
           {humansTurn && !isRolling && !gameOver && !hasRolledOnce && (
             <button
               className="border border-line rounded px-3 py-1"

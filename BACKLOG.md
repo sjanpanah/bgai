@@ -45,8 +45,6 @@ if it needs more.
   flexbox and will likely squeeze badly on a narrow screen) and touch input on the board has
   never been checked — the checker points are close together and may need larger tap targets
   for a finger rather than a mouse cursor
-- Mark dice used during a turn — once a die's move has been played, visually distinguish it
-  (e.g. dim/strike it out) from dice still available, so mid-turn it's obvious what's left to play
 
 ### Features
 
@@ -81,6 +79,13 @@ if it needs more.
 
 ## Done
 
+- **Mark dice used during a turn** — dimmed/grayscaled once played rather than struck through
+  (tried a strike-through line first; dropped it, dimming alone reads cleaner). The server now
+  tracks and returns `remaining_dice` on `/roll` and `/move` (additive field, mirrors the
+  session-side bookkeeping the API already did internally for `die_used`), so the frontend
+  doesn't need to infer which die a move consumed — it just diffs the shown faces against
+  `remaining_dice` by value/count, which handles doubles (four identical faces, only count
+  matters) for free
 - **Hide the "New game" button when it would be a no-op** — only shown once the opponent has
   changed or the first roll has happened, since before that a fresh game is identical to the
   one in progress. `App.tsx` tracks `gameStartEngine` (the engine selected when the current

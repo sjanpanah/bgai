@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 
 interface DiceProps {
   dice: [number, number] | null;
+  // Dice not yet spent this turn — whatever value drops out of this list
+  // relative to what's shown gets struck through as "played".
+  remainingDice: number[];
 }
 
 const TUMBLE_MS = 400;
@@ -39,19 +42,41 @@ export function DieFace({ value, size = 48 }: { value: number; size?: number }) 
   );
 }
 
-function Die({ value, settled }: { value: number; settled: boolean }) {
+function Die({
+  value,
+  settled,
+  used,
+}: {
+  value: number;
+  settled: boolean;
+  used: boolean;
+}) {
   return (
     <div
       className={`transition-transform duration-150 ${
         settled ? "scale-100 rotate-0" : "scale-90 rotate-6"
-      }`}
+      } ${used ? "opacity-40 grayscale" : ""}`}
     >
       <DieFace value={value} />
     </div>
   );
 }
 
-export function Dice({ dice }: DiceProps) {
+// Matches shown die faces against the dice still available to play, so a
+// value that dropped out of `remainingDice` renders as struck-through. Values
+// are matched positionally-by-count rather than by index, since doubles show
+// four identical faces and it doesn't matter which specific one is marked used.
+function usedFlags(shown: number[], remaining: number[]): boolean[] {
+  const pool = [...remaining];
+  return shown.map((v) => {
+    const idx = pool.indexOf(v);
+    if (idx === -1) return true;
+    pool.splice(idx, 1);
+    return false;
+  });
+}
+
+export function Dice({ dice, remainingDice }: DiceProps) {
   const [shown, setShown] = useState<number[] | null>(null);
   const [rolling, setRolling] = useState(false);
   const lastDice = useRef<[number, number] | null>(null);
@@ -93,10 +118,14 @@ export function Dice({ dice }: DiceProps) {
 
   if (!dice || !shown) return null;
 
+  // Only meaningful once the tumble settles — mid-tumble faces are random
+  // placeholders, not the real roll, so nothing should read as "used" yet.
+  const used = rolling ? shown.map(() => false) : usedFlags(shown, remainingDice);
+
   return (
     <div className="flex gap-2">
       {shown.map((v, i) => (
-        <Die key={i} value={v} settled={!rolling} />
+        <Die key={i} value={v} settled={!rolling} used={used[i]} />
       ))}
     </div>
   );

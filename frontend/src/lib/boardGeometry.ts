@@ -15,6 +15,10 @@ export const MID_BOTTOM = BOARD_BOTTOM - TRIANGLE_HEIGHT;
 export const OFF_LEFT = BOARD_RIGHT + 20;
 export const OFF_RIGHT = OFF_LEFT + 40;
 export const CHECKER_R = 16;
+// Just outside the off tray's right edge, on the page ground rather than the
+// tray's wood, mirroring how the point numbers sit outside the board rect.
+export const PIP_LABEL_X = OFF_RIGHT + 14;
+export const VIEWBOX_RIGHT = OFF_RIGHT + 60;
 
 export function isTop(idx: number): boolean {
   return idx >= 12;

@@ -10,12 +10,15 @@ import {
   CHECKER_R,
   OFF_LEFT,
   OFF_RIGHT,
+  PIP_LABEL_X,
+  VIEWBOX_RIGHT,
   checkerCenters,
   isTop,
   pointX,
   trianglePath,
 } from "../lib/boardGeometry";
 import { liftOne } from "../lib/visualMove";
+import { pipCount } from "../lib/pipCount";
 import { BAR, OFF, type GameState } from "../types/game";
 import type { Flight } from "../hooks/useAnimatedBoard";
 
@@ -140,7 +143,7 @@ export function Board({
   return (
     <svg
       ref={svgRef}
-      viewBox="0 0 920 600"
+      viewBox={`0 0 ${VIEWBOX_RIGHT} 600`}
       className="w-full max-w-4xl mx-auto select-none"
     >
       <rect
@@ -308,6 +311,27 @@ export function Board({
           {state.off[0]}
         </text>
       </g>
+
+      {/* Pip counts sit just outside the off tray, on the page ground like the
+          point numbers, rather than crowding the tray's own bear-off count. */}
+      <text
+        x={PIP_LABEL_X}
+        y={BOARD_TOP + 20}
+        textAnchor="start"
+        fontSize={13}
+        style={{ fill: "var(--color-muted)" }}
+      >
+        {pipCount(state, 1)}
+      </text>
+      <text
+        x={PIP_LABEL_X}
+        y={BOARD_BOTTOM - 10}
+        textAnchor="start"
+        fontSize={13}
+        style={{ fill: "var(--color-muted)" }}
+      >
+        {pipCount(state, 0)}
+      </text>
 
       {flight && (
         <circle

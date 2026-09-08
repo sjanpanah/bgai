@@ -13,12 +13,6 @@ if it needs more.
 
 ### Bugs (priority order — effort vs. damage, highest priority first)
 
-- Destination highlights should show while a checker is being dragged, not only after a
-  click-select — `Board.tsx` keeps drag state (`drag`, lines 44-63) local and never feeds
-  `selectedSource` (`App.tsx:27`), so `selectableDestinations` stays empty mid-drag and you
-  drag blind. Distinct from the M2-era highlight-precedence bug (fixed in `b9c5d53`) — that
-  fixed *which* highlight wins when both apply; this is drag state never reaching the selection
-  state at all. *Small effort, high damage*: breaks a primary interaction path (drag-to-move)
 - A stale AI response clobbers a freshly started game — clicking "New game" while a
   `POST /ai` is in flight lets the old game's response land and `setState` the previous
   position onto the new game. The `aiMoveInFlight` guard doesn't cover this: it prevents two
@@ -29,10 +23,6 @@ if it needs more.
 - Engine selection silently resets to the default (now Neural) on page reload
   (`App.tsx:26`, plain `useState`) — persist it (localStorage/URL); a reload swaps the opponent
   mid-game without any visual cue. *Trivial effort, medium damage*: quiet correctness bug, easy win
-- Bear-off tray (`OFF`) uses `onClick` (`Board.tsx:265`) while every other point uses pointer
-  events (`onPointerDown`/`Move`/`Up`) — inconsistent interaction path, and OFF can't act as a
-  drag source. *Trivial effort, low damage*: touches the same `Board.tsx` pointer code as the
-  drag-highlight bug above, worth batching with it
 - Dark mode is broken — black text on dark backgrounds (e.g. point numbers are `#333`
   in `Board.tsx:185`, plus hardcoded hex throughout `Board.tsx`/`MoveHistory.tsx`/`App.tsx`/
   `Dice.tsx`); no `dark:` variant or theme-token system exists anywhere yet (grep confirms
@@ -84,6 +74,14 @@ if it needs more.
 
 ## Done
 
+- **Bug: destination highlights didn't show mid-drag** — `Board` now lifts the drag source into
+  the shared `selectedSource` state, so the existing `highlightFor` lights the source and its
+  legal destinations during a drag with no duplicated highlight logic. The promotion happens on
+  the first pointer *move* past the drag threshold, not on pointer down: a point can be both a
+  legal destination and a selectable source, and selecting it on press would turn "click to move
+  onto it" into "select it" — the same source/destination collision behind the M2-era bug
+- **Bug: bear-off tray used `onClick`** — `OFF` now uses the same `onPointerDown`/`Move`/`Up`
+  handlers (and `touchAction: "none"`) as every other point, so there's one interaction path
 - **Bug: no error handling on failed API calls** — `useGame` now surfaces an `error` for all
   four API paths instead of throwing into the void; the app shows the message and a "Try again"
   button rather than "Loading..." forever, with a dismissible banner for mid-game failures (plus

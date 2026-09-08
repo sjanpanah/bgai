@@ -156,6 +156,7 @@ function App() {
         selectedSource={selectedSource}
         selectableDestinations={selectableDestinations}
         onPointClick={handlePointClick}
+        onSelectSource={setSelectedSource}
         onMove={handleDragMove}
         flight={flight}
       />

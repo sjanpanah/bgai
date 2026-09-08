@@ -37,6 +37,7 @@ interface BoardProps {
   selectedSource: number | null;
   selectableDestinations: number[];
   onPointClick: (idx: number) => void;
+  onSelectSource: (idx: number | null) => void;
   onMove?: (source: number, target: number) => void;
   flight?: Flight | null;
 }
@@ -54,6 +55,7 @@ export function Board({
   selectedSource,
   selectableDestinations,
   onPointClick,
+  onSelectSource,
   onMove,
   flight,
 }: BoardProps) {
@@ -101,6 +103,13 @@ export function Board({
     const dx = e.clientX - pointerDownClient.current.x;
     const dy = e.clientY - pointerDownClient.current.y;
     const moved = drag.moved || Math.hypot(dx, dy) > DRAG_THRESHOLD_PX;
+    // Promote the drag into the shared selection the instant it becomes a real
+    // drag. highlightFor reads selectedSource/selectableDestinations, so while
+    // the drag source lives only in local state there is nothing to light up and
+    // you drag blind. Deliberately not done on pointer *down*: a point can be
+    // both a legal destination and a selectable source, and pre-selecting it
+    // there would turn "click to move onto it" into "select it" instead.
+    if (moved && !drag.moved) onSelectSource(drag.source);
     const p = clientToSvg(e.clientX, e.clientY);
     setDrag({ ...drag, x: p.x, y: p.y, moved });
   }
@@ -262,8 +271,10 @@ export function Board({
       {/* Off tray: player 1 (top-right bearer) on top, player 0 (bottom-right bearer) on bottom. */}
       <g
         data-point-idx={OFF}
-        onClick={() => onPointClick(OFF)}
-        style={{ cursor: "pointer" }}
+        onPointerDown={(e) => handlePointerDown(OFF, e)}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        style={{ cursor: "pointer", touchAction: "none" }}
       >
         {highlightFor(OFF) !== "none" && (
           <rect

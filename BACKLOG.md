@@ -53,6 +53,11 @@ if it needs more.
 - Allow one checker to play both dice in a single click (3+2 = land 5 away, consuming both dice)
 - Add a `wildbg` engine (open-source neural reference, HTTP API in local Docker) — plan drafted,
   needs strong nets from the `nets` branch swapped in before build since they're `include_bytes!`d
+- Exploration: run history, users, and login — persist completed games (result, engine played,
+  moves/dice) instead of losing them at game-over, and gate that history behind actual user
+  accounts. Bigger than anything else here: needs an auth story (sessions? OAuth?), a users
+  table, a run-history schema tied to `GameState`'s serialization, and endpoints/UI to browse
+  past games. No decisions made yet — scope this out before committing to an approach
 
 ### Docs / process
 

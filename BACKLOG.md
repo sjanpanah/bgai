@@ -32,6 +32,14 @@ if it needs more.
   checker" hint shows up front. Needs deciding: does the subdued hint disappear once a source
   is selected (leaving just the current bright-blue per-source highlight), or stay visible
   alongside it; and what the subdued color/opacity should be relative to the current `#60a5fa`
+- Drop the green "movable checker" highlight shown on every legal source as soon as the dice
+  are rolled — your own checkers are already obvious from their colour, so outlining them adds
+  noise without telling you anything. Note what it technically encodes is *sources with a legal
+  move*, not "yours": a checker of yours that can't move this roll isn't green, so removing it
+  gives that up (clicking a stuck checker would just do nothing instead). Pairs with the
+  subdued-destination-preview item above — if the green goes and the preview never lands, the
+  board offers no hint at all until you click a checker. Keep the yellow selected-source and
+  blue destination highlights either way; those carry real information
 - Make the app responsive / usable on mobile browsers — untested so far. Partly there already
   (viewport meta tag is set, the board is an SVG with a `viewBox` so it should scale down), but
   there are zero breakpoints anywhere in the layout (header row, roll/history row are plain

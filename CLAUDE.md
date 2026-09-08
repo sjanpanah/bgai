@@ -289,8 +289,8 @@ only — v1 clients keep working.
 
 ## Milestones (v1.0)
 
-The numbered milestones drive toward a **1.0** release. Everything past that is post-1.0
-(see Future ideas) and is not committed to a slot.
+The numbered milestones M1–M5 drove toward a **1.0** release; M6 is the first post-1.0
+milestone (see Future ideas for uncommitted, unscheduled ones beyond it).
 
 | # | Name | Status | Deliverable |
 |---|---|---|---|
@@ -299,10 +299,16 @@ The numbered milestones drive toward a **1.0** release. Everything past that is 
 | M3 | Heuristic engine | done | `heuristic` engine + working UI selector |
 | M4 | Expectiminimax + rollouts | done | `expectiminimax` engine, benchmarked vs heuristic |
 | M5 | Neural engine | done | TD-Gammon-style self-play engine; beats `expectiminimax` 77.5% over 200 games |
+| M6 | Backlog cleanup | in progress | Clear every open item in `BACKLOG.md` (bugs, UI/UX, features, docs/process) |
 
-That's 1.0 — all five milestones are shipped. Remaining work is the BACKLOG (UI polish and
-robustness) plus the post-1.0 ideas below; `gnubg` was never wired up, so the engine's
-*absolute* strength is still unmeasured (see the M5 results).
+M1–M5 shipped 1.0. `gnubg` was never wired up, so the engine's *absolute* strength is
+still unmeasured (see the M5 results) — that stays open, tracked in BACKLOG.md under
+Features, not blocking M6.
+
+M6 works BACKLOG.md top to bottom by section: **Bugs** first, then **UI/UX**, then
+**Features**, then **Docs/process** last. Within Bugs, items are ordered by priority
+(effort vs. damage) — BACKLOG.md itself is that ordering, not a copy of it. Check items
+off in BACKLOG.md as they land; M6 is done when Open is empty.
 
 ---
 

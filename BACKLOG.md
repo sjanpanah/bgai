@@ -11,29 +11,47 @@ if it needs more.
 
 ## Open
 
+### Bugs (priority order — effort vs. damage, highest priority first)
+
+- No error handling on failed API calls (`useGame.ts:9-17,42-44`) — if the backend is down or
+  cold-starting at page load, `newGame()` throws uncaught and the app sits on "Loading..."
+  forever with no message and no retry. *Small effort, high damage*: Render free-tier cold
+  starts make this a real first-impression failure, not a hypothetical
+- `aiMove` has no in-flight guard (`useGame.ts:102-125`) — it's called from an `App.tsx` effect
+  keyed on `selectedEngine`, so changing the engine mid-AI-turn fires a second concurrent
+  `POST /ai`; both responses can race back and both call `setState`. *Small effort, high
+  damage*: a genuine state-corruption race in production, not just a rough edge
+- Destination highlights should show while a checker is being dragged, not only after a
+  click-select — `Board.tsx` keeps drag state (`drag`, lines 44-63) local and never feeds
+  `selectedSource` (`App.tsx:27`), so `selectableDestinations` stays empty mid-drag and you
+  drag blind. Distinct from the M2-era highlight-precedence bug (fixed in `b9c5d53`) — that
+  fixed *which* highlight wins when both apply; this is drag state never reaching the selection
+  state at all. *Small effort, high damage*: breaks a primary interaction path (drag-to-move)
+- Engine selection silently resets to the default (now Neural) on page reload
+  (`App.tsx:26`, plain `useState`) — persist it (localStorage/URL); a reload swaps the opponent
+  mid-game without any visual cue. *Trivial effort, medium damage*: quiet correctness bug, easy win
+- Bear-off tray (`OFF`) uses `onClick` (`Board.tsx:265`) while every other point uses pointer
+  events (`onPointerDown`/`Move`/`Up`) — inconsistent interaction path, and OFF can't act as a
+  drag source. *Trivial effort, low damage*: touches the same `Board.tsx` pointer code as the
+  drag-highlight bug above, worth batching with it
+- `POST /game/new` fires twice on load (`useGame.ts:42-44`, no guard on the effect;
+  `StrictMode` double-invokes it in dev), orphaning a game server-side. *Trivial effort, low
+  damage in production* (StrictMode double-invoke is dev-only), but cheap to fix while already
+  in `useGame.ts` for the two bugs above
+- Dark mode is broken — black text on dark backgrounds (e.g. point numbers are `#333`
+  in `Board.tsx:185`, plus hardcoded hex throughout `Board.tsx`/`MoveHistory.tsx`/`App.tsx`/
+  `Dice.tsx`); no `dark:` variant or theme-token system exists anywhere yet (grep confirms
+  zero hits). *Medium effort, medium damage*: not a couple of stray colors, it's an unstyled
+  system — needs a dark-mode strategy decision before the fix, not just find-and-replace.
+  Ordered last: real but visual-only, and the only item needing a design decision first
+
+### UI / UX
+
+- Auto-roll dice after the first roll of a turn (currently every roll needs a manual click)
 - Improve the move history section (better formatting/readability, not just a flat log)
 - Show the opponent's last dice roll
 - Slow down the animations for the opponent's moves
 - Add a pip counter to the board (both sides)
-- Dark mode is broken — black text on dark backgrounds (e.g. point numbers are `#333`)
-- Allow one checker to play both dice in a single click (3+2 = land 5 away, consuming both dice)
-- Engine selection silently resets to the default (now Neural) on page reload — persist it
-  (localStorage/URL); a reload swaps the opponent mid-game without any visual cue. Verified still
-  broken after the default changed: nothing is written to localStorage or the URL
-- No error handling on failed API calls — if the backend is down at page load, `newGame()` throws
-  and the app sits on "Loading..." forever with no message and no retry
-- `POST /game/new` fires twice on load (StrictMode double-invokes the effect), orphaning a game
-- `aiMove` has no in-flight guard — changing the engine mid-AI-turn can fire two concurrent `POST /ai`
-- Bear-off tray (`OFF`) uses `onClick` while every other point uses pointer events — different
-  interaction path than the rest of the board
-- Destination highlights should show while a checker is being dragged, not only after a
-  click-select — `Board.tsx` keeps drag state locally and never feeds `selectedSource`, so
-  `selectableDestinations` is empty mid-drag and you drag blind. Fix by lifting the drag source
-  into the same selection state rather than duplicating the highlight logic: click and drag
-  having separate sources of truth is what produced the M2-era highlight bug too
-- Surface the running git commit so a deployed instance's code can be confirmed without
-  guessing — a backend endpoint (e.g. `GET /version`) plus a small footer/about display in the
-  UI showing what's actually live on Render/Pages vs. what's committed locally
 - Make the app responsive / usable on mobile browsers — untested so far. Partly there already
   (viewport meta tag is set, the board is an SVG with a `viewBox` so it should scale down), but
   there are zero breakpoints anywhere in the layout (header row, roll/history row are plain
@@ -41,8 +59,16 @@ if it needs more.
   never been checked — the checker points are close together and may need larger tap targets
   for a finger rather than a mouse cursor
 
+### Features
+
+- Allow one checker to play both dice in a single click (3+2 = land 5 away, consuming both dice)
 - Add a `wildbg` engine (open-source neural reference, HTTP API in local Docker) — plan drafted,
   needs strong nets from the `nets` branch swapped in before build since they're `include_bytes!`d
+- Surface the running git commit so a deployed instance's code can be confirmed without
+  guessing — a backend endpoint (e.g. `GET /version`) plus a small footer/about display in the
+  UI showing what's actually live on Render/Pages vs. what's committed locally
+
+### Docs / process
 
 - Rewrite the README — it's stale and undersells the project. Says M5 is "next", omits `neural`
   from the engine list entirely, and documents the old wrong `choose_move(state, dice) -> Move`

@@ -39,6 +39,15 @@ interface BoardProps {
   selectableSources: number[];
   selectedSource: number | null;
   selectableDestinations: number[];
+  // Destinations only reachable by combining two dice into one drag (e.g.
+  // 3+2 = 5 away). Own color so a combined move reads as a different kind
+  // of destination, not a duplicate of the direct-move highlight.
+  combinedDestinations: number[];
+  // Dim preview of every destination reachable *this turn*, across every
+  // source, shown before any source is selected; replaced by the bright
+  // per-source highlights above once one is picked.
+  previewDirect: number[];
+  previewCombined: number[];
   onPointClick: (idx: number) => void;
   onSelectSource: (idx: number | null) => void;
   onMove?: (source: number, target: number) => void;
@@ -57,6 +66,9 @@ export function Board({
   selectableSources,
   selectedSource,
   selectableDestinations,
+  combinedDestinations,
+  previewDirect,
+  previewCombined,
   onPointClick,
   onSelectSource,
   onMove,
@@ -73,11 +85,16 @@ export function Board({
   // invisible. With one die left that can hide *every* destination, making a
   // playable turn look frozen — and since the turn can't complete, the AI
   // never gets to move either.
-  const highlightFor = (idx: number) => {
-    if (idx === selectedSource) return "#facc15";
-    if (selectableDestinations.includes(idx)) return "#60a5fa";
-    if (selectableSources.includes(idx)) return "#4ade80";
-    return "none";
+  const highlightFor = (idx: number): { stroke: string; opacity: number } | null => {
+    if (idx === selectedSource) return { stroke: "#facc15", opacity: 1 };
+    if (selectableDestinations.includes(idx)) return { stroke: "#60a5fa", opacity: 1 };
+    if (combinedDestinations.includes(idx)) return { stroke: "#60a5fa", opacity: 0.7 };
+    if (selectableSources.includes(idx)) return { stroke: "#4ade80", opacity: 1 };
+    if (selectedSource === null) {
+      if (previewDirect.includes(idx)) return { stroke: "#60a5fa", opacity: 0.35 };
+      if (previewCombined.includes(idx)) return { stroke: "#fbbf24", opacity: 0.35 };
+    }
+    return null;
   };
 
   function clientToSvg(clientX: number, clientY: number): { x: number; y: number } {
@@ -181,11 +198,12 @@ export function Board({
             d={trianglePath(idx)}
             fill={idx % 2 === 0 ? LIGHT_TRIANGLE : DARK_TRIANGLE}
           />
-          {highlightFor(idx) !== "none" && (
+          {highlightFor(idx) && (
             <path
               d={trianglePath(idx)}
               fill="none"
-              stroke={highlightFor(idx)}
+              stroke={highlightFor(idx)!.stroke}
+              strokeOpacity={highlightFor(idx)!.opacity}
               strokeWidth={4}
             />
           )}
@@ -238,14 +256,15 @@ export function Board({
         onPointerUp={handlePointerUp}
         style={{ cursor: "pointer", touchAction: "none" }}
       >
-        {highlightFor(BAR) !== "none" && (
+        {highlightFor(BAR) && (
           <rect
             x={BAR_LEFT}
             y={BOARD_TOP}
             width={BAR_WIDTH}
             height={BOARD_BOTTOM - BOARD_TOP}
             fill="none"
-            stroke={highlightFor(BAR)}
+            stroke={highlightFor(BAR)!.stroke}
+            strokeOpacity={highlightFor(BAR)!.opacity}
             strokeWidth={4}
           />
         )}
@@ -281,14 +300,15 @@ export function Board({
         onPointerUp={handlePointerUp}
         style={{ cursor: "pointer", touchAction: "none" }}
       >
-        {highlightFor(OFF) !== "none" && (
+        {highlightFor(OFF) && (
           <rect
             x={OFF_LEFT}
             y={BOARD_TOP}
             width={OFF_RIGHT - OFF_LEFT}
             height={BOARD_BOTTOM - BOARD_TOP}
             fill="none"
-            stroke={highlightFor(OFF)}
+            stroke={highlightFor(OFF)!.stroke}
+            strokeOpacity={highlightFor(OFF)!.opacity}
             strokeWidth={4}
           />
         )}

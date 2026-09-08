@@ -17,6 +17,7 @@ from ai.registry import DEFAULT_ENGINE_ID, get_engine
 from engine.moves import (
     apply_move,
     apply_turn,
+    combined_moves as compute_combined_moves,
     legal_next_moves,
     legal_single_die_moves,
     legal_turn_sequences,
@@ -25,6 +26,7 @@ from engine.rules import has_won, win_multiplier
 from engine.state import Dice, GameState, Move
 from models.game import (
     AiMoveResponse,
+    CombinedMoveModel,
     GameOverModel,
     MoveModel,
     MoveRequest,
@@ -56,6 +58,16 @@ def _as_models(moves: list[Move]) -> list[MoveModel]:
     return [MoveModel(source=m.source, target=m.target) for m in moves]
 
 
+def _combined_as_models(pairs: list[tuple[Move, Move]]) -> list[CombinedMoveModel]:
+    return [
+        CombinedMoveModel(
+            first=MoveModel(source=m1.source, target=m1.target),
+            second=MoveModel(source=m2.source, target=m2.target),
+        )
+        for m1, m2 in pairs
+    ]
+
+
 def _game_over(state: GameState, player: int) -> GameOverModel | None:
     if not has_won(state, player):
         return None
@@ -85,8 +97,12 @@ def roll(game_id: str) -> RollResponse:
         return RollResponse(dice=dice, legal_moves=[], state=session.state.to_dict())
 
     session.remaining_dice = values
+    combos = compute_combined_moves(session.state, session.state.turn, values)
     return RollResponse(
-        dice=dice, legal_moves=_as_models(next_moves), state=session.state.to_dict()
+        dice=dice,
+        legal_moves=_as_models(next_moves),
+        combined_moves=_combined_as_models(combos),
+        state=session.state.to_dict(),
     )
 
 
@@ -122,9 +138,11 @@ def move(game_id: str, body: MoveRequest) -> MoveResponse:
         return MoveResponse(state=session.state.to_dict(), legal_moves=[], game_over=game_over)
 
     session.remaining_dice = remaining
+    combos = compute_combined_moves(session.state, player, remaining)
     return MoveResponse(
         state=session.state.to_dict(),
         legal_moves=_as_models(next_moves),
+        combined_moves=_combined_as_models(combos),
         game_over=None,
     )
 

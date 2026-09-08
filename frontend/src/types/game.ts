@@ -7,6 +7,12 @@ export interface Move {
   target: number;
 }
 
+// A two-hop combo offered as a single drag: submit `first` then `second`.
+export interface CombinedMove {
+  first: Move;
+  second: Move;
+}
+
 export interface GameState {
   board: number[];
   bar: [number, number];

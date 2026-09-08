@@ -169,3 +169,52 @@ def legal_next_moves(state: GameState, player: int, remaining: list[int]) -> lis
             seen.add(seq[0])
             moves.append(seq[0])
     return moves
+
+
+def _signature(state: GameState) -> tuple:
+    return (tuple(state.board), tuple(state.bar), tuple(state.off))
+
+
+def combined_moves(
+    state: GameState, player: int, remaining: list[int]
+) -> list[tuple[Move, Move]]:
+    """Two-hop combos: pairs of legal single-die moves that together move one
+    checker using two of `remaining`'s dice (e.g. 3+2 = 5 away), so the UI can
+    offer them as a single drag. Each result is (first_move, second_move); the
+    caller submits both moves in sequence. Built entirely from
+    `legal_next_moves`/`apply_move` rather than re-deriving legality, so a
+    combo is only offered when both hops are genuinely legal continuations of
+    the turn (forced-larger-die rule included).
+
+    A (source, target) pair is only offered when *every* order that reaches
+    it leaves an identical resulting board. Two orders can land on the same
+    square while differing in what they do along the way -- e.g. 3-then-6
+    hits a blot at the intermediate point but 6-then-3 doesn't -- and in that
+    case the order is a real decision the player has to make, not a detail a
+    single click should silently paper over. Such a pair is dropped entirely
+    rather than picking one order arbitrarily; the player falls back to
+    playing the two dice one at a time, same as before this shortcut existed.
+    """
+    if len(remaining) < 2:
+        return []
+    # key -> {signature -> (first_move, second_move)}; more than one distinct
+    # signature under a key means the orders diverge and the combo is unsafe
+    # to offer as a single click.
+    by_key: dict[tuple[int, int], dict[tuple, tuple[Move, Move]]] = {}
+    for m1 in legal_next_moves(state, player, remaining):
+        die = _die_used(player, m1)
+        next_remaining = list(remaining)
+        next_remaining.remove(die)
+        mid_state = apply_move(state, player, m1)
+        for m2 in legal_next_moves(mid_state, player, next_remaining):
+            if m2.source != m1.target:
+                continue
+            key = (m1.source, m2.target)
+            signature = _signature(apply_move(mid_state, player, m2))
+            by_key.setdefault(key, {}).setdefault(signature, (m1, m2))
+
+    return [
+        next(iter(variants.values()))
+        for variants in by_key.values()
+        if len(variants) == 1
+    ]

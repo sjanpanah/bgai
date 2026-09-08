@@ -1,4 +1,4 @@
-from engine.moves import apply_turn, legal_next_moves, legal_turn_sequences
+from engine.moves import apply_turn, combined_moves, legal_next_moves, legal_turn_sequences
 from engine.state import PLAYER_0, GameState, Move
 
 
@@ -66,6 +66,58 @@ def test_dance_when_no_legal_move_exists():
     state.board[20] = -2  # blocks entry for die 4
     sequences = legal_turn_sequences(state, PLAYER_0, (3, 4))
     assert sequences == [[]]
+
+
+def test_combined_moves_offers_both_orders_when_they_land_together():
+    state = _empty_state()
+    state.board[15] = 1
+    # 3+2 = 5 away from point 15 (index 15, "16" in 1-based) lands on index 10.
+    # Both die orders are legal here and dedup on the same (source, target)
+    # key, so only one survives -- which intermediate point it passes through
+    # isn't guaranteed, only that it's a genuine hop between 15 and 10.
+    combos = combined_moves(state, PLAYER_0, [3, 2])
+    assert len(combos) == 1
+    first, second = combos[0]
+    assert first.source == 15
+    assert second.target == 10
+    assert first.target == second.source
+    assert first.target in (12, 13)
+
+
+def test_combined_moves_empty_with_fewer_than_two_dice():
+    state = _empty_state()
+    state.board[15] = 1
+    assert combined_moves(state, PLAYER_0, [3]) == []
+    assert combined_moves(state, PLAYER_0, []) == []
+
+
+def test_combined_moves_excludes_blocked_intermediate():
+    state = _empty_state()
+    state.board[15] = 1
+    state.board[12] = -2  # blocks the die-3-first order's first hop (15 -> 12)
+    state.board[13] = -2  # blocks the die-2-first order's first hop (15 -> 13)
+    combos = combined_moves(state, PLAYER_0, [3, 2])
+    assert combos == []
+
+
+def test_combined_moves_excludes_pair_when_orders_diverge():
+    """3-then-6 hits the blot on 12 on the way through; 6-then-3 never touches
+    12 at all. Both orders land the checker on the same final square (6), but
+    they leave different boards (a hit vs no hit) -- that's a real decision,
+    not a detail a single click should paper over, so the pair must not be
+    offered at all rather than picking one order arbitrarily."""
+    state = _empty_state()
+    state.board[15] = 1
+    state.board[12] = -1  # a blot: not blocked, but hit if landed on
+    combos = combined_moves(state, PLAYER_0, [3, 6])
+    assert combos == []
+
+
+def test_combined_moves_on_doubles_chains_exactly_two_dice():
+    state = _empty_state()
+    state.board[20] = 1
+    combos = combined_moves(state, PLAYER_0, [2, 2, 2, 2])
+    assert combos == [(Move(20, 18), Move(18, 16))]
 
 
 def test_doubles_allow_four_moves():

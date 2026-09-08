@@ -12,6 +12,13 @@ class MoveModel(BaseModel):
     target: int
 
 
+class CombinedMoveModel(BaseModel):
+    """A two-hop combo offered as a single drag: submit `first` then `second`."""
+
+    first: MoveModel
+    second: MoveModel
+
+
 class GameStateModel(BaseModel):
     board: list[int]
     bar: list[int]
@@ -32,6 +39,7 @@ class NewGameResponse(BaseModel):
 class RollResponse(BaseModel):
     dice: tuple[int, int]
     legal_moves: list[MoveModel]
+    combined_moves: list[CombinedMoveModel] = []
     state: GameStateModel
 
 
@@ -42,6 +50,7 @@ class MoveRequest(BaseModel):
 class MoveResponse(BaseModel):
     state: GameStateModel
     legal_moves: list[MoveModel]
+    combined_moves: list[CombinedMoveModel] = []
     game_over: GameOverModel | None = None
 
 

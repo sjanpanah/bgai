@@ -2,7 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { API_BASE_URL } from "../lib/api";
 import type { TurnAnimation } from "./useAnimatedBoard";
 import { notateTurn } from "../lib/notation";
-import type { GameOver, GameState, HistoryEntry, Move } from "../types/game";
+import type {
+  CombinedMove,
+  GameOver,
+  GameState,
+  HistoryEntry,
+  Move,
+} from "../types/game";
 
 const HUMAN = 0;
 
@@ -38,6 +44,7 @@ export function useGame() {
   const [state, setState] = useState<GameState | null>(null);
   const [dice, setDice] = useState<[number, number] | null>(null);
   const [legalMoves, setLegalMoves] = useState<Move[]>([]);
+  const [combinedMoves, setCombinedMoves] = useState<CombinedMove[]>([]);
   const [turnMoves, setTurnMoves] = useState<Move[]>([]);
   const [gameOver, setGameOver] = useState<GameOver | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -72,6 +79,7 @@ export function useGame() {
       setState(body.state);
       setDice(null);
       setLegalMoves([]);
+      setCombinedMoves([]);
       setTurnMoves([]);
       setGameOver(null);
       setHistory([]);
@@ -108,6 +116,7 @@ export function useGame() {
         // server-side, so there's nothing to play.
         setDice(null);
         setLegalMoves([]);
+        setCombinedMoves([]);
         setHistory((h) => [
           ...h,
           {
@@ -120,12 +129,58 @@ export function useGame() {
       }
       setDice(body.dice);
       setLegalMoves(body.legal_moves);
+      setCombinedMoves(body.combined_moves ?? []);
       setTurnMoves([]);
     } catch (err) {
       if (epoch !== gameEpoch.current) return;
       setError(describeError(err));
     }
   }, [gameId]);
+
+  // Shared tail end of "the human played some moves this turn": records the
+  // resulting state/animation/legal options, and closes out the turn's
+  // history entry once the server says no dice remain playable. `dice` and
+  // `turnMovesSoFar` are passed explicitly rather than read from hook state
+  // so a combined two-hop submission (two sequential requests within one
+  // handler) can call this once per hop without hitting stale-closure issues.
+  function applyMoveResult(
+    moves: Move[],
+    body: {
+      state: GameState;
+      legal_moves: Move[];
+      combined_moves?: CombinedMove[];
+      game_over?: GameOver | null;
+    },
+    dice: [number, number],
+    turnMovesSoFar: Move[],
+  ) {
+    const playedThisTurn = [...turnMovesSoFar, ...moves];
+    setState(body.state);
+    setError(null);
+    setTurnAnimation({
+      id: nextAnimationId.current++,
+      player: HUMAN,
+      moves,
+      finalState: body.state,
+    });
+    setLegalMoves(body.legal_moves);
+    setCombinedMoves(body.combined_moves ?? []);
+    if (body.legal_moves.length === 0) {
+      setHistory((h) => [
+        ...h,
+        {
+          player: HUMAN,
+          dice,
+          notation: notateTurn(HUMAN, dice, playedThisTurn),
+        },
+      ]);
+      setDice(null);
+      setTurnMoves([]);
+    } else {
+      setTurnMoves(playedThisTurn);
+    }
+    if (body.game_over) setGameOver(body.game_over);
+  }
 
   const submitMove = useCallback(
     async (move: Move) => {
@@ -136,31 +191,44 @@ export function useGame() {
           move,
         });
         if (epoch !== gameEpoch.current) return;
-        const playedThisTurn = [...turnMoves, move];
-        setState(body.state);
-        setError(null);
-        setTurnAnimation({
-          id: nextAnimationId.current++,
-          player: HUMAN,
-          moves: [move],
-          finalState: body.state,
+        applyMoveResult([move], body, dice, turnMoves);
+      } catch (err) {
+        if (epoch !== gameEpoch.current) return;
+        setError(describeError(err));
+      }
+    },
+    [gameId, dice, turnMoves],
+  );
+
+  // One drag onto a combined-only destination plays as two real single-die
+  // moves under the hood (the API only ever accepts one move at a time — see
+  // POST /game/{id}/move). Both requests are awaited sequentially so the
+  // second is submitted against the board state the first actually produced;
+  // the result is applied once, at the end, as a single two-hop turn update.
+  const submitCombined = useCallback(
+    async (first: Move, second: Move) => {
+      if (!gameId || !dice) return;
+      const epoch = gameEpoch.current;
+      try {
+        const body1 = await postJson(`${API_BASE_URL}/game/${gameId}/move`, {
+          move: first,
         });
-        setLegalMoves(body.legal_moves);
-        if (body.legal_moves.length === 0) {
-          setHistory((h) => [
-            ...h,
-            {
-              player: HUMAN,
-              dice,
-              notation: notateTurn(HUMAN, dice, playedThisTurn),
-            },
-          ]);
-          setDice(null);
-          setTurnMoves([]);
-        } else {
-          setTurnMoves(playedThisTurn);
+        if (epoch !== gameEpoch.current) return;
+        const secondStillLegal = (body1.legal_moves as Move[]).some(
+          (m) => m.source === second.source && m.target === second.target,
+        );
+        if (body1.game_over || !secondStillLegal) {
+          // Shouldn't happen -- combined_moves was computed from this exact
+          // state -- but fall back to landing after just the first hop
+          // rather than submitting a move the server won't accept.
+          applyMoveResult([first], body1, dice, turnMoves);
+          return;
         }
-        if (body.game_over) setGameOver(body.game_over);
+        const body2 = await postJson(`${API_BASE_URL}/game/${gameId}/move`, {
+          move: second,
+        });
+        if (epoch !== gameEpoch.current) return;
+        applyMoveResult([first, second], body2, dice, turnMoves);
       } catch (err) {
         if (epoch !== gameEpoch.current) return;
         setError(describeError(err));
@@ -218,6 +286,7 @@ export function useGame() {
     state,
     dice,
     legalMoves,
+    combinedMoves,
     gameOver,
     history,
     turnAnimation,
@@ -227,6 +296,7 @@ export function useGame() {
     newGame,
     roll,
     submitMove,
+    submitCombined,
     aiMove,
     human: HUMAN,
   };

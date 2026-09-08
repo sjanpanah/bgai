@@ -28,6 +28,7 @@ function App() {
     state,
     dice,
     legalMoves,
+    combinedMoves,
     gameOver,
     history,
     turnAnimation,
@@ -37,6 +38,7 @@ function App() {
     newGame,
     roll,
     submitMove,
+    submitCombined,
     aiMove,
     human,
   } = useGame();
@@ -106,14 +108,41 @@ function App() {
       .map((m) => m.target);
   }, [legalMoves, selectedSource]);
 
+  const combinedDestinations = useMemo(() => {
+    if (selectedSource === null) return [];
+    return combinedMoves
+      .filter((c) => c.first.source === selectedSource)
+      .map((c) => c.second.target);
+  }, [combinedMoves, selectedSource]);
+
+  // Dim, whole-turn preview shown before any source is picked: every
+  // destination reachable by *some* checker this turn, direct or combined.
+  const previewDirect = useMemo(() => {
+    if (!humansTurn || !isRolling || isAnimating || selectedSource !== null) return [];
+    return [...new Set(legalMoves.map((m) => m.target))];
+  }, [humansTurn, isRolling, isAnimating, selectedSource, legalMoves]);
+
+  const previewCombined = useMemo(() => {
+    if (!humansTurn || !isRolling || isAnimating || selectedSource !== null) return [];
+    return [...new Set(combinedMoves.map((c) => c.second.target))];
+  }, [humansTurn, isRolling, isAnimating, selectedSource, combinedMoves]);
+
   function handlePointClick(idx: number) {
     if (!humansTurn || !isRolling || isAnimating) return;
     if (selectedSource !== null) {
-      const match = legalMoves.find(
+      const direct = legalMoves.find(
         (m) => m.source === selectedSource && m.target === idx,
       );
-      if (match) {
-        submitMove(match);
+      if (direct) {
+        submitMove(direct);
+        setSelectedSource(null);
+        return;
+      }
+      const combo = combinedMoves.find(
+        (c) => c.first.source === selectedSource && c.second.target === idx,
+      );
+      if (combo) {
+        submitCombined(combo.first, combo.second);
         setSelectedSource(null);
         return;
       }
@@ -127,11 +156,19 @@ function App() {
 
   function handleDragMove(source: number, target: number) {
     if (!humansTurn || !isRolling || isAnimating) return;
-    const match = legalMoves.find(
+    const direct = legalMoves.find(
       (m) => m.source === source && m.target === target,
     );
-    if (match) {
-      submitMove(match);
+    if (direct) {
+      submitMove(direct);
+      setSelectedSource(null);
+      return;
+    }
+    const combo = combinedMoves.find(
+      (c) => c.first.source === source && c.second.target === target,
+    );
+    if (combo) {
+      submitCombined(combo.first, combo.second);
       setSelectedSource(null);
     }
   }
@@ -209,6 +246,9 @@ function App() {
         selectableSources={selectableSources}
         selectedSource={selectedSource}
         selectableDestinations={selectableDestinations}
+        combinedDestinations={combinedDestinations}
+        previewDirect={previewDirect}
+        previewCombined={previewCombined}
         onPointClick={handlePointClick}
         onSelectSource={setSelectedSource}
         onMove={handleDragMove}

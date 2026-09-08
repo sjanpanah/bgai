@@ -1,1 +1,33 @@
 @import "tailwindcss";
+
+/* One palette, painted by the app itself, rather than a light set and a dark set.
+   The board, checkers and dice are physical objects — wood, felt, pips — so they
+   keep their own colours in any context; only the chrome around them is themed,
+   and it borrows the board's own materials (--color-ink is the light checker).
+   Painting our own ground is also the actual fix: the body used to be
+   transparent, so a dark browser ground showed through under black text. */
+@theme {
+  --color-surface: #2a1f18;
+  --color-ink: #f4f1ea;
+  --color-muted: #b9ab99;
+  --color-dim: #9a8c7b;
+  /* Buttons are outlined rather than filled, so this border is the only thing
+     marking them as controls — it has to clear the 3:1 non-text contrast bar,
+     not just look like a hairline. */
+  --color-line: #85715c;
+
+  --color-danger: #f0b1a3;
+  --color-danger-surface: #5a2a20;
+  --color-danger-line: #bd7160;
+}
+
+:root {
+  /* Tell the browser the page is dark so its own UI — scrollbars, form controls,
+     autofill — matches instead of rendering light chrome on a dark page. */
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+}

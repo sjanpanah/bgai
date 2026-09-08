@@ -191,7 +191,9 @@ export function Board({
             y={isTop(idx) ? BOARD_TOP - 10 : BOARD_BOTTOM + 20}
             textAnchor="middle"
             fontSize={12}
-            fill="#333"
+            // The only label drawn outside the board rect, so it sits on the page
+            // ground rather than on wood and has to follow the chrome palette.
+            style={{ fill: "var(--color-muted)" }}
           >
             {idx + 1}
           </text>

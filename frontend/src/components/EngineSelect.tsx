@@ -11,7 +11,7 @@ export function EngineSelect({ engines, value, onChange }: EngineSelectProps) {
     <label className="flex items-center gap-2 text-sm">
       Opponent:
       <select
-        className="border border-gray-400 rounded px-2 py-1"
+        className="border border-line rounded px-2 py-1"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >

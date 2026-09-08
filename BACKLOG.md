@@ -11,14 +11,9 @@ if it needs more.
 
 ## Open
 
-### Bugs (priority order — effort vs. damage, highest priority first)
+### Bugs
 
-- Dark mode is broken — black text on dark backgrounds (e.g. point numbers are `#333`
-  in `Board.tsx:185`, plus hardcoded hex throughout `Board.tsx`/`MoveHistory.tsx`/`App.tsx`/
-  `Dice.tsx`); no `dark:` variant or theme-token system exists anywhere yet (grep confirms
-  zero hits). *Medium effort, medium damage*: not a couple of stray colors, it's an unstyled
-  system — needs a dark-mode strategy decision before the fix, not just find-and-replace.
-  Ordered last: real but visual-only, and the only item needing a design decision first
+*(none open — see Done)*
 
 ### UI / UX
 
@@ -27,8 +22,12 @@ if it needs more.
   error states), then triage the findings back into this section as individual items
 - Auto-roll dice after the first roll of a turn (currently every roll needs a manual click)
 - Improve the move history section (better formatting/readability, not just a flat log)
-- Show the opponent's last dice roll
-- Slow down the animations for the opponent's moves
+- Show the opponent's dice, and keep them visible alongside its last move — right now the AI's
+  roll is never rendered at all (`Dice` only ever shows the human's), so you see checkers move
+  with no idea which dice produced them. The roll already comes back on the `/ai` response and
+  is stored in the history entry; it just isn't displayed
+- Make the opponent's move animation longer — it currently runs at the same speed as the
+  human's, which is too fast to follow when you didn't choose the move yourself
 - Add a pip counter to the board (both sides)
 - Make the app responsive / usable on mobile browsers — untested so far. Partly there already
   (viewport meta tag is set, the board is an SVG with a `viewBox` so it should scale down), but
@@ -67,6 +66,17 @@ if it needs more.
 
 ## Done
 
+- **Bug: dark mode was broken** — the real cause wasn't missing `dark:` variants but that the
+  page never painted a background at all: `body` was transparent with black text, so any dark
+  host ground showed through and made it unreadable. Fixed by giving the app **one palette it
+  paints itself** (Tailwind v4 `@theme` tokens in `index.css`, `color-scheme: dark`), so the OS
+  setting no longer changes anything — verified byte-identical under `prefers-color-scheme`
+  light and dark. Ground is dark brown `#2a1f18` with cream `#f4f1ea` text borrowed from the
+  light checker. The board, checkers and dice deliberately keep their own colours: they're
+  physical objects, not themed UI. Only the point numbers moved (`Board.tsx`) since they're the
+  one label drawn outside the board on the page ground. All pairs meet WCAG AA — note the button
+  border needed lightening to `#85715c` for 3:1, because outlined buttons are identified solely
+  by that border
 - **Bug: a stale AI response clobbered a freshly started game** — `useGame` keeps a game epoch
   bumped by every `newGame()`; each request captures the epoch it was issued under and drops its
   result (and its error) if that no longer matches, so a slow response can't apply the previous

@@ -32,6 +32,7 @@ function App() {
     history,
     turnAnimation,
     error,
+    hasRolledOnce,
     clearError,
     newGame,
     roll,
@@ -50,7 +51,11 @@ function App() {
     backendVersion.commit !== FRONTEND_COMMIT;
   const [selectedEngine, setSelectedEngine] = useState(readStoredEngine);
   const [selectedSource, setSelectedSource] = useState<number | null>(null);
-  const { displayState, flight } = useAnimatedBoard(state, turnAnimation, human);
+  const { displayState, flight, isAnimating } = useAnimatedBoard(
+    state,
+    turnAnimation,
+    human,
+  );
 
   useEffect(() => {
     try {
@@ -72,7 +77,6 @@ function App() {
 
   const humansTurn = state?.turn === human;
   const isRolling = dice !== null;
-  const isAnimating = flight !== null;
 
   useEffect(() => {
     if (!state || gameOver) return;
@@ -80,6 +84,15 @@ function App() {
       aiMove(selectedEngine);
     }
   }, [state, gameOver, isRolling, human, aiMove, selectedEngine]);
+
+  // Only the game's very first roll is a deliberate manual click; every roll
+  // after that fires on its own as soon as it's the human's turn again.
+  useEffect(() => {
+    if (!state || gameOver) return;
+    if (humansTurn && !isRolling && !isAnimating && hasRolledOnce) {
+      roll();
+    }
+  }, [state, gameOver, humansTurn, isRolling, isAnimating, hasRolledOnce, roll]);
 
   const selectableSources = useMemo(() => {
     if (!humansTurn || !isRolling || isAnimating) return [];
@@ -205,7 +218,7 @@ function App() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Dice dice={dice} />
-          {humansTurn && !isRolling && !gameOver && (
+          {humansTurn && !isRolling && !gameOver && !hasRolledOnce && (
             <button
               className="border border-line rounded px-3 py-1"
               onClick={roll}

@@ -27,6 +27,11 @@ export function useAnimatedBoard(
 ) {
   const [displayState, setDisplayState] = useState<GameState | null>(state);
   const [flight, setFlight] = useState<Flight | null>(null);
+  // True from the moment a turn is queued until the whole queue has drained —
+  // unlike `flight`, this is set synchronously with the queue push, so callers
+  // waiting to react to "animation done" don't get a false "not animating" in
+  // the gap before the first rAF tick actually sets a flight position.
+  const [isAnimating, setIsAnimating] = useState(false);
   const displayRef = useRef<GameState | null>(state);
   const queueRef = useRef<TurnAnimation[]>([]);
   const processingRef = useRef(false);
@@ -52,6 +57,7 @@ export function useAnimatedBoard(
     if (!turn || turn.id === lastIdRef.current) return;
     lastIdRef.current = turn.id;
     queueRef.current.push(turn);
+    setIsAnimating(true);
     void processQueue();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turn]);
@@ -64,6 +70,7 @@ export function useAnimatedBoard(
       await animateTurn(next);
     }
     processingRef.current = false;
+    setIsAnimating(false);
   }
 
   async function animateTurn(t: TurnAnimation) {
@@ -113,5 +120,5 @@ export function useAnimatedBoard(
     });
   }
 
-  return { displayState: displayState ?? state, flight };
+  return { displayState: displayState ?? state, flight, isAnimating };
 }

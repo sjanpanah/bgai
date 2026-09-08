@@ -45,6 +45,9 @@ export function useGame() {
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  // Only the very first roll of a game is manual (a deliberate "start playing"
+  // click); every roll after that fires on its own once it's the human's turn.
+  const [hasRolledOnce, setHasRolledOnce] = useState(false);
   const nextAnimationId = useRef(0);
 
   // Bumped by every newGame(). Each request captures the epoch it was issued
@@ -74,6 +77,7 @@ export function useGame() {
       setHistory([]);
       setTurnAnimation(null);
       setError(null);
+      setHasRolledOnce(false);
     } catch (err) {
       if (epoch !== gameEpoch.current) return;
       setError(describeError(err));
@@ -98,6 +102,7 @@ export function useGame() {
       if (epoch !== gameEpoch.current) return;
       setState(body.state);
       setError(null);
+      setHasRolledOnce(true);
       if (body.legal_moves.length === 0) {
         // Forced dance: no legal entry/move at all: the turn already passed
         // server-side, so there's nothing to play.
@@ -217,6 +222,7 @@ export function useGame() {
     history,
     turnAnimation,
     error,
+    hasRolledOnce,
     clearError,
     newGame,
     roll,

@@ -300,6 +300,15 @@ export function Board({
         onPointerUp={handlePointerUp}
         style={{ cursor: "pointer", touchAction: "none" }}
       >
+        {/* SVG only hit-tests filled geometry, not the <g> itself — without this,
+            only the pip-count text and any borne-off checkers were clickable. */}
+        <rect
+          x={OFF_LEFT}
+          y={BOARD_TOP}
+          width={OFF_RIGHT - OFF_LEFT}
+          height={BOARD_BOTTOM - BOARD_TOP}
+          fill="transparent"
+        />
         {highlightFor(OFF) && (
           <rect
             x={OFF_LEFT}

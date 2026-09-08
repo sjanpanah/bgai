@@ -13,12 +13,7 @@ if it needs more.
 
 ### Bugs
 
-- Bear-off tray's clickable/droppable area is too small — the `<g data-point-idx={OFF}>` in
-  `Board.tsx` has pointer handlers but no invisible fill covering the tray, so SVG only hit-tests
-  its actual children (the pip-count text, the conditional highlight border which is `fill="none"`,
-  and any checkers already borne off). Add a transparent full-tray `<rect>` (matching the
-  `OFF_LEFT`/`OFF_RIGHT`/`BOARD_TOP`/`BOARD_BOTTOM` highlight rect's geometry) as the actual hit
-  target so bearing off works from anywhere in the tray, not just the number. this might have started when we added the pip counters.
+*(none open — see Done)*
 
 ### UI / UX
 
@@ -79,6 +74,14 @@ if it needs more.
 
 ## Done
 
+- **Bug: bear-off tray's clickable/droppable area was too small** — the `<g data-point-idx={OFF}>`
+  in `Board.tsx` had pointer handlers but no filled geometry covering the tray, so SVG only
+  hit-tested its actual children (the pip-count text, the conditional highlight border which is
+  `fill="none"`, and any checkers already borne off) — clicking or dropping anywhere else in the
+  tray silently missed. Fixed with a transparent full-tray `<rect>` (matching the highlight
+  rect's `OFF_LEFT`/`OFF_RIGHT`/`BOARD_TOP`/`BOARD_BOTTOM` geometry) as the first child, so the
+  whole tray is now the real hit target. Likely dates back to the pip-counter change, which added
+  the first non-hit-testable content (the border rect, `fill="none"`) into that `<g>`
 - **Mark dice used during a turn** — dimmed/grayscaled once played rather than struck through
   (tried a strike-through line first; dropped it, dimming alone reads cleaner). The server now
   tracks and returns `remaining_dice` on `/roll` and `/move` (additive field, mirrors the

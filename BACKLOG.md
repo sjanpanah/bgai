@@ -40,6 +40,9 @@ if it needs more.
   flexbox and will likely squeeze badly on a narrow screen) and touch input on the board has
   never been checked — the checker points are close together and may need larger tap targets
   for a finger rather than a mouse cursor
+- Hide the "New game" button if the opponent hasn't changed and the first roll hasn't been
+  made — at that point a fresh game is identical to the one already in progress, so the button
+  is a no-op that just invites an accidental reset
 
 ### Features
 

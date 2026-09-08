@@ -13,20 +13,19 @@ if it needs more.
 
 ### Bugs (priority order — effort vs. damage, highest priority first)
 
-- No error handling on failed API calls (`useGame.ts:9-17,42-44`) — if the backend is down or
-  cold-starting at page load, `newGame()` throws uncaught and the app sits on "Loading..."
-  forever with no message and no retry. *Small effort, high damage*: Render free-tier cold
-  starts make this a real first-impression failure, not a hypothetical
-- `aiMove` has no in-flight guard (`useGame.ts:102-125`) — it's called from an `App.tsx` effect
-  keyed on `selectedEngine`, so changing the engine mid-AI-turn fires a second concurrent
-  `POST /ai`; both responses can race back and both call `setState`. *Small effort, high
-  damage*: a genuine state-corruption race in production, not just a rough edge
 - Destination highlights should show while a checker is being dragged, not only after a
   click-select — `Board.tsx` keeps drag state (`drag`, lines 44-63) local and never feeds
   `selectedSource` (`App.tsx:27`), so `selectableDestinations` stays empty mid-drag and you
   drag blind. Distinct from the M2-era highlight-precedence bug (fixed in `b9c5d53`) — that
   fixed *which* highlight wins when both apply; this is drag state never reaching the selection
   state at all. *Small effort, high damage*: breaks a primary interaction path (drag-to-move)
+- A stale AI response clobbers a freshly started game — clicking "New game" while a
+  `POST /ai` is in flight lets the old game's response land and `setState` the previous
+  position onto the new game. The `aiMoveInFlight` guard doesn't cover this: it prevents two
+  concurrent calls, not one call outliving the game it belonged to. Fix by tagging the
+  response with the `gameId` (or a game epoch counter) it was issued for and dropping it if
+  that no longer matches. *Small effort, medium-high damage*: narrow window, but the result is
+  a visibly corrupted board rather than a cosmetic glitch. Found while fixing the in-flight guard
 - Engine selection silently resets to the default (now Neural) on page reload
   (`App.tsx:26`, plain `useState`) — persist it (localStorage/URL); a reload swaps the opponent
   mid-game without any visual cue. *Trivial effort, medium damage*: quiet correctness bug, easy win
@@ -34,10 +33,6 @@ if it needs more.
   events (`onPointerDown`/`Move`/`Up`) — inconsistent interaction path, and OFF can't act as a
   drag source. *Trivial effort, low damage*: touches the same `Board.tsx` pointer code as the
   drag-highlight bug above, worth batching with it
-- `POST /game/new` fires twice on load (`useGame.ts:42-44`, no guard on the effect;
-  `StrictMode` double-invokes it in dev), orphaning a game server-side. *Trivial effort, low
-  damage in production* (StrictMode double-invoke is dev-only), but cheap to fix while already
-  in `useGame.ts` for the two bugs above
 - Dark mode is broken — black text on dark backgrounds (e.g. point numbers are `#333`
   in `Board.tsx:185`, plus hardcoded hex throughout `Board.tsx`/`MoveHistory.tsx`/`App.tsx`/
   `Dice.tsx`); no `dark:` variant or theme-token system exists anywhere yet (grep confirms
@@ -89,6 +84,17 @@ if it needs more.
 
 ## Done
 
+- **Bug: no error handling on failed API calls** — `useGame` now surfaces an `error` for all
+  four API paths instead of throwing into the void; the app shows the message and a "Try again"
+  button rather than "Loading..." forever, with a dismissible banner for mid-game failures (plus
+  an explicit Retry on the AI's turn, whose effect deps don't change on failure so it can't
+  retry itself). `useEngines` had the same bug — it never checked `res.ok`, threw an unhandled
+  rejection, and left the dropdown permanently empty even after the backend came back
+- **Bug: `aiMove` had no in-flight guard** — an `aiMoveInFlight` ref drops re-entrant calls.
+  Verified by delaying the `/ai` response and switching engines 4× mid-request: 0 extra calls
+- **Bug: `POST /game/new` fired twice on load** — a `didInit` ref guards the init effect
+  (on the effect, not on `newGame`, so the "New game" button still works). Verified at exactly
+  1 call per page load via the page's own Resource Timing
 - Rename difficulties/opponents (engine dropdown labels)
 - Animate the dice roll (a little tumble/reveal, not just appearing)
 - Move by clicking/dragging the checker itself, not just the point (triangle) behind it

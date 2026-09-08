@@ -16,6 +16,23 @@ async function postJson(url: string, body?: unknown) {
   return res.json();
 }
 
+// fetch rejects with a TypeError when it can't reach the host at all. That is the
+// common failure here rather than an exotic one: the backend sits on a free tier
+// that sleeps, so "unreachable" usually means "cold-starting", not "broken".
+function describeError(err: unknown): string {
+  // Nothing else logs these now that they're caught rather than thrown, and the
+  // banner only ever shows a trimmed version — keep the full detail reachable.
+  console.error(err);
+  if (err instanceof TypeError) {
+    return "Can't reach the server — it may be waking up, which takes about 30 seconds.";
+  }
+  const message = err instanceof Error ? err.message.trim() : "";
+  if (!message) return "Something went wrong talking to the server.";
+  // postJson rethrows the raw response body, which for a validation error is a
+  // JSON blob: readable in the console, unreadable in a one-line banner.
+  return message.length > 200 ? `${message.slice(0, 200)}…` : message;
+}
+
 export function useGame() {
   const [gameId, setGameId] = useState<string | null>(null);
   const [state, setState] = useState<GameState | null>(null);
@@ -24,102 +41,145 @@ export function useGame() {
   const [turnMoves, setTurnMoves] = useState<Move[]>([]);
   const [gameOver, setGameOver] = useState<GameOver | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [turnAnimation, setTurnAnimation] = useState<TurnAnimation | null>(null);
+  const [turnAnimation, setTurnAnimation] = useState<TurnAnimation | null>(
+    null,
+  );
+  const [error, setError] = useState<string | null>(null);
   const nextAnimationId = useRef(0);
 
+  const clearError = useCallback(() => setError(null), []);
+
   const newGame = useCallback(async () => {
-    const body = await postJson(`${API_BASE_URL}/game/new`);
-    setGameId(body.game_id);
-    setState(body.state);
-    setDice(null);
-    setLegalMoves([]);
-    setTurnMoves([]);
-    setGameOver(null);
-    setHistory([]);
-    setTurnAnimation(null);
+    try {
+      const body = await postJson(`${API_BASE_URL}/game/new`);
+      setGameId(body.game_id);
+      setState(body.state);
+      setDice(null);
+      setLegalMoves([]);
+      setTurnMoves([]);
+      setGameOver(null);
+      setHistory([]);
+      setTurnAnimation(null);
+      setError(null);
+    } catch (err) {
+      setError(describeError(err));
+    }
   }, []);
 
+  // StrictMode double-invokes effects in dev. Without this guard the second
+  // invocation POSTs /game/new again and orphans the game the first one created.
+  // The guard is on the effect, not on newGame, so the "New game" button still works.
+  const didInit = useRef(false);
   useEffect(() => {
+    if (didInit.current) return;
+    didInit.current = true;
     newGame();
   }, [newGame]);
 
   const roll = useCallback(async () => {
     if (!gameId) return;
-    const body = await postJson(`${API_BASE_URL}/game/${gameId}/roll`);
-    setState(body.state);
-    if (body.legal_moves.length === 0) {
-      // Forced dance: no legal entry/move at all: the turn already passed
-      // server-side, so there's nothing to play.
-      setDice(null);
-      setLegalMoves([]);
-      setHistory((h) => [
-        ...h,
-        {
-          player: HUMAN,
-          dice: body.dice,
-          notation: notateTurn(HUMAN, body.dice, []),
-        },
-      ]);
-      return;
+    try {
+      const body = await postJson(`${API_BASE_URL}/game/${gameId}/roll`);
+      setState(body.state);
+      setError(null);
+      if (body.legal_moves.length === 0) {
+        // Forced dance: no legal entry/move at all: the turn already passed
+        // server-side, so there's nothing to play.
+        setDice(null);
+        setLegalMoves([]);
+        setHistory((h) => [
+          ...h,
+          {
+            player: HUMAN,
+            dice: body.dice,
+            notation: notateTurn(HUMAN, body.dice, []),
+          },
+        ]);
+        return;
+      }
+      setDice(body.dice);
+      setLegalMoves(body.legal_moves);
+      setTurnMoves([]);
+    } catch (err) {
+      setError(describeError(err));
     }
-    setDice(body.dice);
-    setLegalMoves(body.legal_moves);
-    setTurnMoves([]);
   }, [gameId]);
 
   const submitMove = useCallback(
     async (move: Move) => {
       if (!gameId || !dice) return;
-      const body = await postJson(`${API_BASE_URL}/game/${gameId}/move`, { move });
-      const playedThisTurn = [...turnMoves, move];
-      setState(body.state);
-      setTurnAnimation({
-        id: nextAnimationId.current++,
-        player: HUMAN,
-        moves: [move],
-        finalState: body.state,
-      });
-      setLegalMoves(body.legal_moves);
-      if (body.legal_moves.length === 0) {
-        setHistory((h) => [
-          ...h,
-          {
-            player: HUMAN,
-            dice,
-            notation: notateTurn(HUMAN, dice, playedThisTurn),
-          },
-        ]);
-        setDice(null);
-        setTurnMoves([]);
-      } else {
-        setTurnMoves(playedThisTurn);
+      try {
+        const body = await postJson(`${API_BASE_URL}/game/${gameId}/move`, {
+          move,
+        });
+        const playedThisTurn = [...turnMoves, move];
+        setState(body.state);
+        setError(null);
+        setTurnAnimation({
+          id: nextAnimationId.current++,
+          player: HUMAN,
+          moves: [move],
+          finalState: body.state,
+        });
+        setLegalMoves(body.legal_moves);
+        if (body.legal_moves.length === 0) {
+          setHistory((h) => [
+            ...h,
+            {
+              player: HUMAN,
+              dice,
+              notation: notateTurn(HUMAN, dice, playedThisTurn),
+            },
+          ]);
+          setDice(null);
+          setTurnMoves([]);
+        } else {
+          setTurnMoves(playedThisTurn);
+        }
+        if (body.game_over) setGameOver(body.game_over);
+      } catch (err) {
+        setError(describeError(err));
       }
-      if (body.game_over) setGameOver(body.game_over);
     },
     [gameId, dice, turnMoves],
   );
 
+  // The caller is an effect keyed on the selected engine, so switching engines
+  // during the AI's turn re-fires it mid-request. Without this guard both
+  // requests land and both write state, applying two AI turns to one roll.
+  const aiMoveInFlight = useRef(false);
+
   const aiMove = useCallback(
     async (engine: string) => {
-      if (!gameId) return;
+      if (!gameId || aiMoveInFlight.current) return;
+      aiMoveInFlight.current = true;
       const opponent = 1 - HUMAN;
-      const body = await postJson(`${API_BASE_URL}/game/${gameId}/ai?engine=${engine}`);
-      setState(body.state);
-      setTurnAnimation({
-        id: nextAnimationId.current++,
-        player: opponent,
-        moves: body.move,
-        finalState: body.state,
-      });
-      setHistory((h) => [
-        ...h,
-        {
+      try {
+        const body = await postJson(
+          `${API_BASE_URL}/game/${gameId}/ai?engine=${engine}`,
+        );
+        setState(body.state);
+        setError(null);
+        setTurnAnimation({
+          id: nextAnimationId.current++,
           player: opponent,
-          dice: body.dice,
-          notation: notateTurn(opponent, body.dice, body.move),
-        },
-      ]);
-      if (body.game_over) setGameOver(body.game_over);
+          moves: body.move,
+          finalState: body.state,
+        });
+        setHistory((h) => [
+          ...h,
+          {
+            player: opponent,
+            dice: body.dice,
+            notation: notateTurn(opponent, body.dice, body.move),
+          },
+        ]);
+        if (body.game_over) setGameOver(body.game_over);
+      } catch (err) {
+        setError(describeError(err));
+      } finally {
+        aiMoveInFlight.current = false;
+      }
     },
     [gameId],
   );
@@ -132,6 +192,8 @@ export function useGame() {
     gameOver,
     history,
     turnAnimation,
+    error,
+    clearError,
     newGame,
     roll,
     submitMove,

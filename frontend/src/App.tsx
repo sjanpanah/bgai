@@ -16,13 +16,15 @@ function App() {
     gameOver,
     history,
     turnAnimation,
+    error,
+    clearError,
     newGame,
     roll,
     submitMove,
     aiMove,
     human,
   } = useGame();
-  const engines = useEngines();
+  const { engines, reloadEngines } = useEngines();
   const [selectedEngine, setSelectedEngine] = useState("neural");
   const [selectedSource, setSelectedSource] = useState<number | null>(null);
   const { displayState, flight } = useAnimatedBoard(state, turnAnimation);
@@ -80,10 +82,57 @@ function App() {
     }
   }
 
-  if (!state) return <p className="p-8">Loading...</p>;
+  if (!state) {
+    return (
+      <div className="max-w-4xl mx-auto p-8 flex flex-col items-start gap-3">
+        {error ? (
+          <>
+            <p>{error}</p>
+            <button
+              className="border border-gray-400 rounded px-3 py-1"
+              onClick={() => {
+                // The engine list failed alongside the game if the backend was
+                // down at load, so recover both rather than leaving an empty dropdown.
+                reloadEngines();
+                newGame();
+              }}
+            >
+              Try again
+            </button>
+          </>
+        ) : (
+          <p>Loading...</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-4 flex flex-col gap-4">
+      {error && (
+        <div className="flex items-center justify-between gap-4 border border-red-400 bg-red-50 text-red-900 rounded px-3 py-2 text-sm">
+          <span>{error}</span>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* The AI turn is driven by an effect whose deps don't change when the
+                request fails, so it never retries itself — offer it explicitly. */}
+            {!humansTurn && !gameOver && (
+              <button
+                className="border border-red-400 rounded px-2 py-0.5"
+                onClick={() => aiMove(selectedEngine)}
+              >
+                Retry
+              </button>
+            )}
+            <button
+              className="border border-red-400 rounded px-2 py-0.5"
+              onClick={clearError}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Backgammon vs AI</h1>
         <div className="flex items-center gap-4">

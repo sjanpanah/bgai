@@ -45,9 +45,6 @@ if it needs more.
   flexbox and will likely squeeze badly on a narrow screen) and touch input on the board has
   never been checked — the checker points are close together and may need larger tap targets
   for a finger rather than a mouse cursor
-- Hide the "New game" button if the opponent hasn't changed and the first roll hasn't been
-  made — at that point a fresh game is identical to the one already in progress, so the button
-  is a no-op that just invites an accidental reset
 - Mark dice used during a turn — once a die's move has been played, visually distinguish it
   (e.g. dim/strike it out) from dice still available, so mid-turn it's obvious what's left to play
 
@@ -84,6 +81,11 @@ if it needs more.
 
 ## Done
 
+- **Hide the "New game" button when it would be a no-op** — only shown once the opponent has
+  changed or the first roll has happened, since before that a fresh game is identical to the
+  one in progress. `App.tsx` tracks `gameStartEngine` (the engine selected when the current
+  game began, via a ref updated on every dropdown change and snapshotted in an effect keyed on
+  `gameId`) and compares it against the live `selectedEngine`
 - **Let one checker play both dice in a single drag** (e.g. 3+2 = 5 away), and show the
   destination preview this unlocked. Backend adds `combined_moves` — two-hop combos built by
   composing the existing legal-move generator (`legal_next_moves`/`apply_move`), exposed

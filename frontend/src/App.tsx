@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Board } from "./components/Board";
 import { Dice } from "./components/Dice";
 import { EngineSelect } from "./components/EngineSelect";
@@ -53,6 +53,18 @@ function App() {
     backendVersion.commit !== FRONTEND_COMMIT;
   const [selectedEngine, setSelectedEngine] = useState(readStoredEngine);
   const [selectedSource, setSelectedSource] = useState<number | null>(null);
+
+  // The engine a fresh game would be no different from: whatever was selected
+  // when the current game started. Tracked via a ref so the gameId effect below
+  // doesn't need selectedEngine in its deps and re-fire on every dropdown change.
+  const selectedEngineRef = useRef(selectedEngine);
+  useEffect(() => {
+    selectedEngineRef.current = selectedEngine;
+  }, [selectedEngine]);
+  const [gameStartEngine, setGameStartEngine] = useState(selectedEngine);
+  useEffect(() => {
+    setGameStartEngine(selectedEngineRef.current);
+  }, [gameId]);
   const { displayState, flight, isAnimating } = useAnimatedBoard(
     state,
     turnAnimation,
@@ -79,6 +91,11 @@ function App() {
 
   const humansTurn = state?.turn === human;
   const isRolling = dice !== null;
+  // A fresh game is identical to the one in progress once the opponent hasn't
+  // changed and the first roll hasn't happened yet — offering to reset it then
+  // is a no-op that only invites an accidental click.
+  const newGameIsNoOp =
+    !gameOver && !hasRolledOnce && selectedEngine === gameStartEngine;
 
   useEffect(() => {
     if (!state || gameOver) return;
@@ -232,12 +249,14 @@ function App() {
             value={selectedEngine}
             onChange={setSelectedEngine}
           />
-          <button
-            className="border border-line rounded px-3 py-1"
-            onClick={newGame}
-          >
-            New game
-          </button>
+          {!newGameIsNoOp && (
+            <button
+              className="border border-line rounded px-3 py-1"
+              onClick={newGame}
+            >
+              New game
+            </button>
+          )}
         </div>
       </div>
 

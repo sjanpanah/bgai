@@ -26,12 +26,6 @@ if it needs more.
   player identity (AI vs You) is color-coded — text label, and whether the opponent's dice get
   a distinct face color from the player's own (white) dice — and apply it consistently anywhere
   player identity shows up (history log, future opponent-dice display, etc.)
-- Show a subdued preview of every legal destination this turn (union across all sources) as
-  soon as dice are rolled, before any source is selected/hovered/dragged — today
-  `selectableDestinations` is empty until a source is picked, so only the green "movable
-  checker" hint shows up front. Needs deciding: does the subdued hint disappear once a source
-  is selected (leaving just the current bright-blue per-source highlight), or stay visible
-  alongside it; and what the subdued color/opacity should be relative to the current `#60a5fa`
 - Drop the green "movable checker" highlight shown on every legal source as soon as the dice
   are rolled — your own checkers are already obvious from their colour, so outlining them adds
   noise without telling you anything. Note what it technically encodes is *sources with a legal
@@ -49,7 +43,6 @@ if it needs more.
 
 ### Features
 
-- Allow one checker to play both dice in a single click (3+2 = land 5 away, consuming both dice)
 - Add a `wildbg` engine (open-source neural reference, HTTP API in local Docker) — plan drafted,
   needs strong nets from the `nets` branch swapped in before build since they're `include_bytes!`d
 - Exploration: run history, users, and login — persist completed games (result, engine played,
@@ -81,6 +74,18 @@ if it needs more.
 
 ## Done
 
+- **Let one checker play both dice in a single drag** (e.g. 3+2 = 5 away), and show the
+  destination preview this unlocked. Backend adds `combined_moves` — two-hop combos built by
+  composing the existing legal-move generator (`legal_next_moves`/`apply_move`), exposed
+  additively on the roll/move responses; a `(source, target)` pair is only offered when every
+  order that reaches it leaves an identical board, so a pair where one die order hits a blot
+  and the other doesn't is dropped rather than picking an order arbitrarily — that's a real
+  decision, not a detail to paper over. Frontend highlights: bright blue direct destinations,
+  faded blue for combined-only ones (color picked as a placeholder, "close enough" per Simon —
+  revisit with the colors-unification item below), yellow selected source, plus a dim
+  whole-turn preview of every reachable destination before any source is picked (disappears
+  once one is selected). Landing on a combined destination fires two sequential `/move` calls
+  under the hood, applied as one history entry and one queued animation
 - **Slow the AI's move animation** — 700ms per hop vs the human's 350ms, so opponent moves are
   easy to follow without feeling sluggish. Needed a real `isAnimating` flag from
   `useAnimatedBoard` (set synchronously when a turn is queued) rather than deriving it from

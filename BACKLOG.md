@@ -41,9 +41,6 @@ if it needs more.
 - Allow one checker to play both dice in a single click (3+2 = land 5 away, consuming both dice)
 - Add a `wildbg` engine (open-source neural reference, HTTP API in local Docker) — plan drafted,
   needs strong nets from the `nets` branch swapped in before build since they're `include_bytes!`d
-- Surface the running git commit so a deployed instance's code can be confirmed without
-  guessing — a backend endpoint (e.g. `GET /version`) plus a small footer/about display in the
-  UI showing what's actually live on Render/Pages vs. what's committed locally
 
 ### Docs / process
 
@@ -66,6 +63,13 @@ if it needs more.
 
 ## Done
 
+- **Surface the running git commit** — `GET /version` reports the API's commit
+  (`RENDER_GIT_COMMIT` when deployed, working tree locally, `source` says which); the frontend
+  bakes its own in at build time via `VITE_COMMIT` (CI passes `github.sha`, `vite.config.ts`
+  falls back to git); the footer shows both and flags a mismatch, which is the real signal
+  since Pages and Render deploy independently and can drift apart. Local builds get a
+  `-dirty` suffix when the tree has uncommitted edits — otherwise the endpoint names a
+  commit whose code isn't what's running, which is the normal state while developing
 - **Bug: dark mode was broken** — the real cause wasn't missing `dark:` variants but that the
   page never painted a background at all: `body` was transparent with black text, so any dark
   host ground showed through and made it unreadable. Fixed by giving the app **one palette it

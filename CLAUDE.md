@@ -261,6 +261,7 @@ stance is the main thing that sets this foundation apart. Don't drop it.
     POST /game/{id}/ai    ?engine=random -> { move, state } # ask AI to move
     GET  /engines         -> [ { id, label, available } ]   # powers UI dropdown
     POST /engine/move     -> { move }                       # stateless: no game_id
+    GET  /version         -> { commit, short, source }      # what this instance runs
 
 `engine` is an optional param defaulting to the strongest shipped engine (`neural`),
 so an unspecified opponent is a real game rather than a test stub. Adding
@@ -275,6 +276,16 @@ It's part of the harness/framework, designed in from the start, not bolted on: i
 save/load, position analysis, and the engine benchmark all call underneath. (The endpoint
 itself first ships with the API in M2 since M1 is a pure lib with no I/O — but the M1 engine
 interface must already be a pure, stateless-friendly function so this stays a thin wrapper.)
+
+**Deployed-version visibility.** `GET /version` reports the commit the API is running,
+from `RENDER_GIT_COMMIT` when deployed and the working tree locally (`source` says which,
+or `"unavailable"`). The frontend's own commit is baked in at build time via `VITE_COMMIT`
+— CI passes `github.sha`, `vite.config.ts` falls back to the working tree — and the footer
+shows both, flagging it when they differ. Pages and Render deploy independently, so the two
+halves drifting apart is the failure this is for. A working tree with uncommitted edits gets a
+`-dirty` suffix on both halves (deploys build from a clean checkout, so they never carry it);
+note this is a plain `status --porcelain` check rather than `git describe --dirty`, which would
+start returning tag names once the milestone tags in BACKLOG.md exist.
 
 **gnubg format stays contained.** GNU Backgammon speaks its own compact board encoding
 (Position ID / Match ID) over a subprocess/`hint` interface. All of that translation lives

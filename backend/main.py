@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import engine, game
+from routers import engine, game, version
 
 app = FastAPI(title="Backgammon vs AI")
 
@@ -18,3 +18,4 @@ app.add_middleware(
 
 app.include_router(game.router)
 app.include_router(engine.router)
+app.include_router(version.router)

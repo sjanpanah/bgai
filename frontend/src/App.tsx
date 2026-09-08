@@ -6,6 +6,8 @@ import { MoveHistory } from "./components/MoveHistory";
 import { useAnimatedBoard } from "./hooks/useAnimatedBoard";
 import { useEngines } from "./hooks/useEngines";
 import { useGame } from "./hooks/useGame";
+import { useVersion } from "./hooks/useVersion";
+import { FRONTEND_COMMIT, FRONTEND_SHORT } from "./lib/version";
 
 const ENGINE_STORAGE_KEY = "bgai.engine";
 const DEFAULT_ENGINE = "neural";
@@ -38,6 +40,14 @@ function App() {
     human,
   } = useGame();
   const { engines, reloadEngines } = useEngines();
+  const backendVersion = useVersion();
+  // Only a real mismatch counts: "unknown" on either side means we couldn't
+  // read it, not that the deploys disagree.
+  const versionMismatch =
+    backendVersion !== null &&
+    backendVersion.commit !== "unknown" &&
+    FRONTEND_COMMIT !== "unknown" &&
+    backendVersion.commit !== FRONTEND_COMMIT;
   const [selectedEngine, setSelectedEngine] = useState(readStoredEngine);
   const [selectedSource, setSelectedSource] = useState<number | null>(null);
   const { displayState, flight } = useAnimatedBoard(state, turnAnimation);
@@ -216,7 +226,23 @@ function App() {
       </div>
 
       <MoveHistory history={history} />
-      <p className="text-xs text-dim">Game: {gameId}</p>
+
+      <footer className="text-xs text-dim flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span>Game: {gameId}</span>
+        <span>
+          ui <code>{FRONTEND_SHORT}</code>
+        </span>
+        <span>
+          api <code>{backendVersion?.short ?? "—"}</code>
+        </span>
+        {/* Pages and Render deploy separately, so one lagging behind the other
+            is the failure this footer exists to catch. */}
+        {versionMismatch && (
+          <span className="text-danger">
+            ui and api are on different commits
+          </span>
+        )}
+      </footer>
     </div>
   );
 }

@@ -13,16 +13,6 @@ if it needs more.
 
 ### Bugs (priority order — effort vs. damage, highest priority first)
 
-- A stale AI response clobbers a freshly started game — clicking "New game" while a
-  `POST /ai` is in flight lets the old game's response land and `setState` the previous
-  position onto the new game. The `aiMoveInFlight` guard doesn't cover this: it prevents two
-  concurrent calls, not one call outliving the game it belonged to. Fix by tagging the
-  response with the `gameId` (or a game epoch counter) it was issued for and dropping it if
-  that no longer matches. *Small effort, medium-high damage*: narrow window, but the result is
-  a visibly corrupted board rather than a cosmetic glitch. Found while fixing the in-flight guard
-- Engine selection silently resets to the default (now Neural) on page reload
-  (`App.tsx:26`, plain `useState`) — persist it (localStorage/URL); a reload swaps the opponent
-  mid-game without any visual cue. *Trivial effort, medium damage*: quiet correctness bug, easy win
 - Dark mode is broken — black text on dark backgrounds (e.g. point numbers are `#333`
   in `Board.tsx:185`, plus hardcoded hex throughout `Board.tsx`/`MoveHistory.tsx`/`App.tsx`/
   `Dice.tsx`); no `dark:` variant or theme-token system exists anywhere yet (grep confirms
@@ -32,6 +22,9 @@ if it needs more.
 
 ### UI / UX
 
+- Do a full UI review — walk the whole app in a browser and write down what looks or feels
+  off (visual polish, spacing/alignment, colour and contrast, wording, affordances, empty and
+  error states), then triage the findings back into this section as individual items
 - Auto-roll dice after the first roll of a turn (currently every roll needs a manual click)
 - Improve the move history section (better formatting/readability, not just a flat log)
 - Show the opponent's last dice roll
@@ -74,6 +67,14 @@ if it needs more.
 
 ## Done
 
+- **Bug: a stale AI response clobbered a freshly started game** — `useGame` keeps a game epoch
+  bumped by every `newGame()`; each request captures the epoch it was issued under and drops its
+  result (and its error) if that no longer matches, so a slow response can't apply the previous
+  game's position. The `aiMoveInFlight` release is epoch-aware too, so a discarded response can't
+  unlock a request the new game has in flight
+- **Bug: engine selection reset to the default on reload** — persisted to `localStorage`
+  (`bgai.engine`), with reads/writes wrapped since it throws outright in some privacy modes, and
+  a fallback to the default if a stored id ever outlives the engine it names
 - **Bug: destination highlights didn't show mid-drag** — `Board` now lifts the drag source into
   the shared `selectedSource` state, so the existing `highlightFor` lights the source and its
   legal destinations during a drag with no duplicated highlight logic. The promotion happens on

@@ -7,6 +7,19 @@ import { useAnimatedBoard } from "./hooks/useAnimatedBoard";
 import { useEngines } from "./hooks/useEngines";
 import { useGame } from "./hooks/useGame";
 
+const ENGINE_STORAGE_KEY = "bgai.engine";
+const DEFAULT_ENGINE = "neural";
+
+// localStorage throws outright in some privacy modes rather than returning null,
+// and remembering the opponent is a convenience — never a reason to fail to start.
+function readStoredEngine(): string {
+  try {
+    return localStorage.getItem(ENGINE_STORAGE_KEY) ?? DEFAULT_ENGINE;
+  } catch {
+    return DEFAULT_ENGINE;
+  }
+}
+
 function App() {
   const {
     gameId,
@@ -25,9 +38,27 @@ function App() {
     human,
   } = useGame();
   const { engines, reloadEngines } = useEngines();
-  const [selectedEngine, setSelectedEngine] = useState("neural");
+  const [selectedEngine, setSelectedEngine] = useState(readStoredEngine);
   const [selectedSource, setSelectedSource] = useState<number | null>(null);
   const { displayState, flight } = useAnimatedBoard(state, turnAnimation);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ENGINE_STORAGE_KEY, selectedEngine);
+    } catch {
+      // Not worth surfacing: the game plays fine, the choice just won't persist.
+    }
+  }, [selectedEngine]);
+
+  // A stored id can outlive the engine it names — renamed, dropped, or merely
+  // unavailable here because it needs a binary this machine doesn't have (gnubg,
+  // wildbg). EngineSelect disables unavailable options, so without this the user
+  // is stuck on an opponent they can't play and can't re-pick. Fall back once the
+  // real list arrives rather than posting a dead engine on every turn.
+  useEffect(() => {
+    const usable = engines.some((e) => e.id === selectedEngine && e.available);
+    if (engines.length && !usable) setSelectedEngine(DEFAULT_ENGINE);
+  }, [engines, selectedEngine]);
 
   const humansTurn = state?.turn === human;
   const isRolling = dice !== null;

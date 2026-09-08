@@ -47,11 +47,24 @@ export function useGame() {
   const [error, setError] = useState<string | null>(null);
   const nextAnimationId = useRef(0);
 
+  // Bumped by every newGame(). Each request captures the epoch it was issued
+  // under and drops its result if that no longer matches, so a slow response
+  // can't apply the previous game's position to the game now on screen. The
+  // aiMoveInFlight guard doesn't cover this: it stops two *concurrent* calls,
+  // not one call outliving the game it belonged to.
+  const gameEpoch = useRef(0);
+  const aiMoveInFlight = useRef(false);
+
   const clearError = useCallback(() => setError(null), []);
 
   const newGame = useCallback(async () => {
+    const epoch = ++gameEpoch.current;
+    // Any AI move still in flight belongs to the old game and is now inert, so
+    // the fresh game must not inherit its guard.
+    aiMoveInFlight.current = false;
     try {
       const body = await postJson(`${API_BASE_URL}/game/new`);
+      if (epoch !== gameEpoch.current) return;
       setGameId(body.game_id);
       setState(body.state);
       setDice(null);
@@ -62,6 +75,7 @@ export function useGame() {
       setTurnAnimation(null);
       setError(null);
     } catch (err) {
+      if (epoch !== gameEpoch.current) return;
       setError(describeError(err));
     }
   }, []);
@@ -78,8 +92,10 @@ export function useGame() {
 
   const roll = useCallback(async () => {
     if (!gameId) return;
+    const epoch = gameEpoch.current;
     try {
       const body = await postJson(`${API_BASE_URL}/game/${gameId}/roll`);
+      if (epoch !== gameEpoch.current) return;
       setState(body.state);
       setError(null);
       if (body.legal_moves.length === 0) {
@@ -101,6 +117,7 @@ export function useGame() {
       setLegalMoves(body.legal_moves);
       setTurnMoves([]);
     } catch (err) {
+      if (epoch !== gameEpoch.current) return;
       setError(describeError(err));
     }
   }, [gameId]);
@@ -108,10 +125,12 @@ export function useGame() {
   const submitMove = useCallback(
     async (move: Move) => {
       if (!gameId || !dice) return;
+      const epoch = gameEpoch.current;
       try {
         const body = await postJson(`${API_BASE_URL}/game/${gameId}/move`, {
           move,
         });
+        if (epoch !== gameEpoch.current) return;
         const playedThisTurn = [...turnMoves, move];
         setState(body.state);
         setError(null);
@@ -138,6 +157,7 @@ export function useGame() {
         }
         if (body.game_over) setGameOver(body.game_over);
       } catch (err) {
+        if (epoch !== gameEpoch.current) return;
         setError(describeError(err));
       }
     },
@@ -147,17 +167,17 @@ export function useGame() {
   // The caller is an effect keyed on the selected engine, so switching engines
   // during the AI's turn re-fires it mid-request. Without this guard both
   // requests land and both write state, applying two AI turns to one roll.
-  const aiMoveInFlight = useRef(false);
-
   const aiMove = useCallback(
     async (engine: string) => {
       if (!gameId || aiMoveInFlight.current) return;
       aiMoveInFlight.current = true;
+      const epoch = gameEpoch.current;
       const opponent = 1 - HUMAN;
       try {
         const body = await postJson(
           `${API_BASE_URL}/game/${gameId}/ai?engine=${engine}`,
         );
+        if (epoch !== gameEpoch.current) return;
         setState(body.state);
         setError(null);
         setTurnAnimation({
@@ -176,9 +196,13 @@ export function useGame() {
         ]);
         if (body.game_over) setGameOver(body.game_over);
       } catch (err) {
+        if (epoch !== gameEpoch.current) return;
         setError(describeError(err));
       } finally {
-        aiMoveInFlight.current = false;
+        // Only release the guard if it's still ours: newGame() already cleared
+        // it for the fresh game, and a stale response must not unlock a request
+        // the new game currently has in flight.
+        if (epoch === gameEpoch.current) aiMoveInFlight.current = false;
       }
     },
     [gameId],

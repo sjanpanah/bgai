@@ -26,15 +26,6 @@ if it needs more.
   player identity (AI vs You) is color-coded — text label, and whether the opponent's dice get
   a distinct face color from the player's own (white) dice — and apply it consistently anywhere
   player identity shows up (history log, future opponent-dice display, etc.)
-- Auto-roll dice after the first roll of a turn (currently every roll needs a manual click)
-- Improve the move history section (better formatting/readability, not just a flat log)
-- Show the opponent's dice, and keep them visible alongside its last move — right now the AI's
-  roll is never rendered at all (`Dice` only ever shows the human's), so you see checkers move
-  with no idea which dice produced them. The roll already comes back on the `/ai` response and
-  is stored in the history entry; it just isn't displayed
-- Make the opponent's move animation longer — it currently runs at the same speed as the
-  human's, which is too fast to follow when you didn't choose the move yourself
-- Add a pip counter to the board (both sides)
 - Show a subdued preview of every legal destination this turn (union across all sources) as
   soon as dice are rolled, before any source is selected/hovered/dragged — today
   `selectableDestinations` is empty until a source is picked, so only the green "movable
@@ -82,6 +73,21 @@ if it needs more.
 
 ## Done
 
+- **Slow the AI's move animation** — 700ms per hop vs the human's 350ms, so opponent moves are
+  easy to follow without feeling sluggish. Needed a real `isAnimating` flag from
+  `useAnimatedBoard` (set synchronously when a turn is queued) rather than deriving it from
+  `flight !== null`, which had a race: `state.turn` flips to the human before the first
+  animation frame lands, so the naive check let the next auto-roll fire mid-AI-animation
+- **Auto-roll dice** after the game's first manual roll — only the very first roll is a
+  deliberate click; every roll after that fires on its own once it's the human's turn again
+- **Revamped the move history log** — newest-first rows, one line each: turn number, colored
+  You/AI label, real per-turn dice icons (reusing a new `DieFace` factored out of `Dice.tsx`),
+  then the move steps (roll digits dropped since the dice icons already show them). This
+  subsumed the separate "show the opponent's dice" ticket — same underlying gap, one fix.
+  Colors are placeholder blue/green for now; see "Unify colors across the app" below
+- **Pip counter** — plain number just outside each side's off tray (top for AI, bottom for
+  you), muted color like the point-number labels, no "pips:" label (position implies meaning).
+  `lib/pipCount.ts` mirrors the backend's `GameState.pip_count()` exactly
 - **Surface the running git commit** — `GET /version` reports the API's commit
   (`RENDER_GIT_COMMIT` when deployed, working tree locally, `source` says which); the frontend
   bakes its own in at build time via `VITE_COMMIT` (CI passes `github.sha`, `vite.config.ts`

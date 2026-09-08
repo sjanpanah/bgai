@@ -425,6 +425,26 @@ die left that could hide every destination, making a playable turn look frozen �
 can't be abandoned, the AI then appeared to stop moving. Engine-vs-engine benchmarks are blind to
 this entire class of bug; only playing a real game in a browser finds it.
 
+**How to actually drive the board in a browser session (M6).** Injected/CDP clicks reach ordinary
+DOM buttons (Roll, New game) but do **not** fire `Board.tsx`'s `onPointerDown`/`Move`/`Up`
+handlers — points look dead and the app looks broken when it isn't. This costs an hour if you
+don't know it. Dispatch real `PointerEvent`s on the `[data-point-idx]` element instead:
+
+    const g = document.querySelector('[data-point-idx="12"]');
+    const r = g.getBoundingClientRect();
+    const o = {bubbles:true, cancelable:true, pointerId:1, pointerType:"mouse",
+               isPrimary:true, clientX:r.left+r.width/2, clientY:r.top+r.height/2, button:0};
+    g.dispatchEvent(new PointerEvent("pointerdown", o));
+    g.dispatchEvent(new PointerEvent("pointerup", o));   // a pointermove between the two = drag
+
+Read state off the highlight strokes rather than screenshots — exact, and it works while the
+browser pane is hidden: `#4ade80` selectable source, `#facc15` selected source, `#60a5fa` legal
+destination. `BAR` is `data-point-idx="-1"`, `OFF` is `24`. A drop resolves via `elementFromPoint`,
+so release at the *destination's* real screen coords (the source element holds pointer capture).
+To count requests per page load use `performance.getEntriesByType("resource")`, which is scoped to
+the current page — a devtools network panel accumulates across navigations and will look like
+duplicate calls when there are none.
+
 ### Findings from the step 1–4 build (2026-09-06)
 
 **The eligibility-trace sign bug — the one real trap, now fixed and pinned by a test.**

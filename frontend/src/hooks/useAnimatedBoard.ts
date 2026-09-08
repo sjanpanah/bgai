@@ -65,12 +65,27 @@ export function useAnimatedBoard(
   async function processQueue() {
     if (processingRef.current) return;
     processingRef.current = true;
-    while (queueRef.current.length > 0) {
-      const next = queueRef.current.shift()!;
-      await animateTurn(next);
+    try {
+      while (queueRef.current.length > 0) {
+        const next = queueRef.current.shift()!;
+        try {
+          await animateTurn(next);
+        } catch (err) {
+          // A single turn's animation failing (e.g. a hop that can't resolve
+          // a slot position) must not leave the board permanently mid-flight
+          // or the queue permanently "processing" -- both would silently
+          // block anything gated on isAnimating, such as the next auto-roll,
+          // with no way for the player to recover. Snap straight to the
+          // authoritative final state and carry on with the rest of the queue.
+          console.error("Turn animation failed, snapping to final state", err);
+          setDisplay(next.finalState);
+          setFlight(null);
+        }
+      }
+    } finally {
+      processingRef.current = false;
+      setIsAnimating(false);
     }
-    processingRef.current = false;
-    setIsAnimating(false);
   }
 
   async function animateTurn(t: TurnAnimation) {

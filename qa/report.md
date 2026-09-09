@@ -38,7 +38,7 @@ Ordered by damage ÷ effort, not by severity alone.
 > | 5 | animation cleanup invariant | **done** — `f7df08a`; reproduced the real wedge and verified the fix against it |
 > | 6 | two accessibility attributes | **done** — `f9282c5` |
 > | 7 | the first responsive breakpoint | **done** — `17f4c63`; no overflow from 320px up |
-> | 8 | everything else | open — and note this one is a compressed list of a dozen-odd things that needs unpacking into real items when reached |
+> | 8 | everything else | **partly done** — the trivial two-thirds landed (`14911ee`, `b819655`, `010216c`, `fd2881b`); the two substantial ones (`describeError`, reload persistence) and the highlight-contrast work are still open |
 >
 > **↩ Follow-up — a second, independent plan, preserved.** Before any of the above was worked, a
 > reading of this report produced its own ordering. It covers roughly a third of the report (~15 of
@@ -297,6 +297,32 @@ phone in portrait. Stack the header below `sm` and let the select shrink. Tablet
   most recent commit on the branch, thirty lines away in the same file (F3.3).
 - `npm audit fix` (F7.5), `ruff format` + `prettier` (F0.2/F0.3), a `didInit` guard on `useEngines`
   and `useVersion` (F2.2), and `<main>` (F4.5).
+
+> **↩ Follow-up — the cheap two-thirds of this list are done.** Landed: the dice-row jump (F1.5), the
+> history log sizing to content (F1.9), the bar's hit-test hole (F3.3), `didInit` on `useEngines` and
+> `useVersion` (F2.2), `<main>` (F4.5) — all in `14911ee`; `npm audit fix` in `b819655`;
+> `ruff format` + `prettier` in `010216c`; and a CI workflow in `fd2881b`.
+>
+> **Still open from this list:** `describeError` (F5.1), reload-destroys-game (F2.7), and the board
+> highlight contrast (F4.6/F1.8/F1.15), which belongs with the colour-unification ticket rather than
+> being done piecemeal.
+>
+> **Two corrections to this item's own framing.**
+>
+> *The CI line had a false premise.* It reads "add both `--check` variants to CI alongside
+> `ruff check`" — but there was no `ruff check` in CI, and no test run either. The only workflow in
+> the repo was the Pages deploy, so nothing ever ran pytest, ruff or tsc on a push. That is also the
+> mechanism behind F0.2/F0.3: formatter drift reached nine files because nothing anywhere checked it.
+> Fixing it properly meant *creating* `.github/workflows/checks.yml` (backend: ruff check, ruff
+> format --check, pytest; frontend: tsc, oxlint, prettier --check), not adding a flag to an existing
+> job. Every step was dry-run locally first so its first run isn't red.
+>
+> *The dice-row jump had a second, separate cause.* Reserving the dice row's height left a residual
+> 5.5px step, which measurement traced not to `Dice` at all but to the header: the New game button
+> appears on the first roll (it is hidden while a fresh game would be a no-op — a shipped feature),
+> growing the header 28.5px → 34px and stepping the whole page down. Fixed with a `min-h` floor on
+> the header row. The log's top is now identical across seven samples spanning several turns,
+> including the opponent's; before, it moved twice a turn.
 
 ---
 

@@ -14,7 +14,7 @@ function stepsOnly(notation: string): string {
 
 export function MoveHistory({ history }: MoveHistoryProps) {
   return (
-    <div className="border border-line rounded p-2 h-48 overflow-y-auto overflow-x-auto text-sm font-mono">
+    <div className="border border-line rounded p-2 max-h-48 overflow-y-auto overflow-x-auto text-sm font-mono">
       {history.length === 0 && <p className="text-dim">No moves yet.</p>}
       {[...history].reverse().map((entry, i) => {
         const turnNo = history.length - i;
@@ -40,7 +40,9 @@ export function MoveHistory({ history }: MoveHistoryProps) {
                 <DieFace key={j} value={v} size={16} />
               ))}
             </span>
-            <span className="whitespace-nowrap">{stepsOnly(entry.notation)}</span>
+            <span className="whitespace-nowrap">
+              {stepsOnly(entry.notation)}
+            </span>
           </div>
         );
       })}

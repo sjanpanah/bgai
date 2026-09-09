@@ -85,19 +85,29 @@ export function Board({
   // invisible. With one die left that can hide *every* destination, making a
   // playable turn look frozen — and since the turn can't complete, the AI
   // never gets to move either.
-  const highlightFor = (idx: number): { stroke: string; opacity: number } | null => {
+  const highlightFor = (
+    idx: number,
+  ): { stroke: string; opacity: number } | null => {
     if (idx === selectedSource) return { stroke: "#facc15", opacity: 1 };
-    if (selectableDestinations.includes(idx)) return { stroke: "#60a5fa", opacity: 1 };
-    if (combinedDestinations.includes(idx)) return { stroke: "#60a5fa", opacity: 0.7 };
-    if (selectableSources.includes(idx)) return { stroke: "#4ade80", opacity: 1 };
+    if (selectableDestinations.includes(idx))
+      return { stroke: "#60a5fa", opacity: 1 };
+    if (combinedDestinations.includes(idx))
+      return { stroke: "#60a5fa", opacity: 0.7 };
+    if (selectableSources.includes(idx))
+      return { stroke: "#4ade80", opacity: 1 };
     if (selectedSource === null) {
-      if (previewDirect.includes(idx)) return { stroke: "#60a5fa", opacity: 0.35 };
-      if (previewCombined.includes(idx)) return { stroke: "#fbbf24", opacity: 0.35 };
+      if (previewDirect.includes(idx))
+        return { stroke: "#60a5fa", opacity: 0.35 };
+      if (previewCombined.includes(idx))
+        return { stroke: "#fbbf24", opacity: 0.35 };
     }
     return null;
   };
 
-  function clientToSvg(clientX: number, clientY: number): { x: number; y: number } {
+  function clientToSvg(
+    clientX: number,
+    clientY: number,
+  ): { x: number; y: number } {
     const svg = svgRef.current;
     const ctm = svg?.getScreenCTM();
     if (!svg || !ctm) return { x: clientX, y: clientY };
@@ -145,7 +155,8 @@ export function Board({
 
     if (wasDragging) {
       const el = document.elementFromPoint(e.clientX, e.clientY);
-      const dropTarget = el instanceof Element ? el.closest("[data-point-idx]") : null;
+      const dropTarget =
+        el instanceof Element ? el.closest("[data-point-idx]") : null;
       if (dropTarget) {
         onMove?.(source, Number(dropTarget.getAttribute("data-point-idx")));
       }
@@ -256,6 +267,16 @@ export function Board({
         onPointerUp={handlePointerUp}
         style={{ cursor: "pointer", touchAction: "none" }}
       >
+        {/* Same reason as the OFF tray below: SVG hit-tests filled geometry, not
+            the <g>, and the highlight rect is `fill="none"` — so without this
+            only the checker circles were clickable, 11px of them on a phone. */}
+        <rect
+          x={BAR_LEFT}
+          y={BOARD_TOP}
+          width={BAR_WIDTH}
+          height={BOARD_BOTTOM - BOARD_TOP}
+          fill="transparent"
+        />
         {highlightFor(BAR) && (
           <rect
             x={BAR_LEFT}

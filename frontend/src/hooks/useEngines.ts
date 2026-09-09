@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { API_BASE_URL } from "../lib/api";
 import type { EngineInfo } from "../types/game";
 
@@ -19,7 +19,13 @@ export function useEngines() {
     }
   }, []);
 
+  // Same guard `useGame` has on its init effect: StrictMode double-invokes
+  // effects in dev, and every duplicate request costs wall-clock time against a
+  // free-tier backend that may be cold-starting. `reloadEngines` is unaffected.
+  const didInit = useRef(false);
   useEffect(() => {
+    if (didInit.current) return;
+    didInit.current = true;
     loadEngines();
   }, [loadEngines]);
 

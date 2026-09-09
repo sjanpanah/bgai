@@ -29,7 +29,13 @@ function randomValue(): number {
 
 // A static, unanimated die face — used wherever a past roll is displayed
 // (e.g. the move history log) rather than the live roll-in-progress.
-export function DieFace({ value, size = 48 }: { value: number; size?: number }) {
+export function DieFace({
+  value,
+  size = 48,
+}: {
+  value: number;
+  size?: number;
+}) {
   return (
     <div
       className="grid grid-cols-3 grid-rows-3 bg-white border border-gray-400 rounded-md"
@@ -107,7 +113,9 @@ export function Dice({ dice, remainingDice }: DiceProps) {
     const timeout = setTimeout(() => {
       clearInterval(interval);
       setRolling(false);
-      setShown(dice[0] === dice[1] ? Array(4).fill(dice[0]) : [dice[0], dice[1]]);
+      setShown(
+        dice[0] === dice[1] ? Array(4).fill(dice[0]) : [dice[0], dice[1]],
+      );
     }, TUMBLE_MS);
 
     return () => {
@@ -116,11 +124,16 @@ export function Dice({ dice, remainingDice }: DiceProps) {
     };
   }, [dice]);
 
-  if (!dice || !shown) return null;
+  // Reserving the row's height rather than unmounting: `Dice` is absent for the
+  // whole of the opponent's turn, so collapsing it moved the history log and
+  // footer up ~48px and back down again twice every single turn.
+  if (!dice || !shown) return <div className="h-12" aria-hidden="true" />;
 
   // Only meaningful once the tumble settles — mid-tumble faces are random
   // placeholders, not the real roll, so nothing should read as "used" yet.
-  const used = rolling ? shown.map(() => false) : usedFlags(shown, remainingDice);
+  const used = rolling
+    ? shown.map(() => false)
+    : usedFlags(shown, remainingDice);
 
   return (
     <div className="flex gap-2">

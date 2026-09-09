@@ -225,7 +225,7 @@ function App() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-4 flex flex-col gap-4">
+    <main className="max-w-4xl mx-auto p-4 flex flex-col gap-4">
       {error && (
         <div
           role="alert"
@@ -256,7 +256,11 @@ function App() {
       {/* The app's first breakpoint. Below `sm` the title and the controls stack
           rather than competing for one row -- unstacked, the header was 435px
           wide on a 375px phone and scrolled the whole page sideways. */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* The min-height reserves the New game button's row: that button appears
+          on the first roll (it's hidden while a fresh game would be a no-op),
+          and without a floor the whole page below it stepped down 5.5px when it
+          did. Same class of jump as the dice row, different trigger. */}
+      <div className="flex flex-col gap-3 sm:min-h-[34px] sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold">Backgammon vs AI</h1>
         <div className="flex items-center gap-4 min-w-0">
           <EngineSelect
@@ -343,7 +347,7 @@ function App() {
           </span>
         )}
       </footer>
-    </div>
+    </main>
   );
 }
 

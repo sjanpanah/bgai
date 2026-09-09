@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { API_BASE_URL } from "../lib/api";
 
 export interface BackendVersion {
@@ -11,7 +11,11 @@ export interface BackendVersion {
 export function useVersion(): BackendVersion | null {
   const [backend, setBackend] = useState<BackendVersion | null>(null);
 
+  // See useEngines: guards StrictMode's double-invoke in dev.
+  const didInit = useRef(false);
   useEffect(() => {
+    if (didInit.current) return;
+    didInit.current = true;
     let cancelled = false;
     (async () => {
       try {

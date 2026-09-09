@@ -82,7 +82,14 @@ if it needs more.
 - Tidy the commit history — squash the early CLAUDE.md doc churn (`v1` → `fold in feedback` →
   `add prior art`) and add milestone tags `m1-rules-engine`…`v1.0` so the ladder is navigable.
   Deliberately *keep* the bug-fix commits (e.g. the TD(λ) trace-sign fix): they document real
-  debugging and a history where nothing ever breaks is less informative, not more
+  debugging and a history where nothing ever breaks is less informative, not more.
+  While in there: six commits carry a `Co-Authored-By: Claude ...` trailer, against the
+  no-attribution preference — `3c261b2b`, `48a48db9`, `72216a07` (2026-07-12 UI work) and
+  `f29f1982`, `6225bece`, `84604bb5` (2026-07-03 CLAUDE.md churn, three of which the squash
+  above already collapses). Claude is never the actual author or committer — all 212 commits
+  are `Simon J` in both fields — it is only the message trailer, which is what GitHub renders
+  as a second avatar. Stripping it rewrites every SHA back to 2026-07-03, so fold it into the
+  same rewrite as the squash and tags rather than doing it separately
 - Write up the M5 build as a post. Strongest material, roughly in order: the TD(λ) trace-sign
   bug (sanity gates read a perfect 0.999/0.003 and game length fell 189→54 plies while the net
   was actually learning almost nothing — a run that *degrades* is misconfigured, one that

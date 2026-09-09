@@ -253,9 +253,12 @@ function App() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      {/* The app's first breakpoint. Below `sm` the title and the controls stack
+          rather than competing for one row -- unstacked, the header was 435px
+          wide on a 375px phone and scrolled the whole page sideways. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold">Backgammon vs AI</h1>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 min-w-0">
           <EngineSelect
             engines={engines}
             value={selectedEngine}
@@ -263,7 +266,7 @@ function App() {
           />
           {!newGameIsNoOp && (
             <button
-              className="border border-line rounded px-3 py-1"
+              className="border border-line rounded px-3 py-1 shrink-0"
               onClick={newGame}
             >
               New game

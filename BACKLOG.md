@@ -17,9 +17,6 @@ if it needs more.
 
 ### UI / UX
 
-- Do a full UI review — walk the whole app in a browser and write down what looks or feels
-  off (visual polish, spacing/alignment, colour and contrast, wording, affordances, empty and
-  error states), then triage the findings back into this section as individual items
 - Unify colors across the app — right now colors get picked ad hoc per feature (e.g. the move
   history log shipped with placeholder blue/green for AI/You that don't match the app's actual
   brown/cream palette or the board's checker colors). Needs one deliberate pass: decide how
@@ -74,6 +71,13 @@ if it needs more.
 
 ## Done
 
+- **Full UI review** — done as an unattended overnight QA pass (`qa/report.md`; the harness and the
+  prompt it was given are in `qa/prompt.md`), which went well beyond the original ask: eight phases
+  covering the UI walkthrough, real games against every engine, responsive and touch, accessibility,
+  failure behaviour, API robustness and security. Findings live in the report rather than being
+  triaged back into this file — each one carries its own repro and suggested fix, which a one-line
+  backlog entry loses. Start from its "Fix these first" section; it holds one blocker (`combined_moves`
+  500s on bear-off overage, which killed 56-76% of measured games and is live in the deployed demo)
 - **Bug: bear-off tray's clickable/droppable area was too small** — the `<g data-point-idx={OFF}>`
   in `Board.tsx` had pointer handlers but no filled geometry covering the tray, so SVG only
   hit-tested its actual children (the pip-count text, the conditional highlight border which is

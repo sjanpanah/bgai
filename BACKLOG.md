@@ -90,6 +90,98 @@ if it needs more.
   M3/M4/M5; grading move choice against a rollout oracle instead of win rate; and the board
   highlight bug that only surfaced by actually playing a game, which no test caught
 
+### QA
+
+Open findings from the unattended QA pass of 2026-09-08. The full report — repro, reasoning and a
+suggested fix for each — is `qa/report.md`; these are one-liners so nothing gets lost, not a
+replacement for it. Its "Fix these first" section has its own tracker at the top of the report and
+is done apart from the colour work below; everything here sat outside that priority list.
+
+Of 55 findings: 23 fixed, 1 deferred (session persistence, folded into the run-history item above),
+31 open — the 31 below.
+
+**Accessibility — the largest untouched block. The report's verdict: "unplayable without a mouse and
+unreadable without sight."**
+
+- The game cannot be played by keyboard at all — only two focusable elements exist in the whole app
+  (F4.1, the report's only accessibility blocker). Suggested route: a focusable list of the legal
+  moves, which are already in `legalMoves` and already rendered as notation, rather than making 26
+  SVG groups focusable
+- The board is invisible to assistive technology — the entire game appears in the accessibility tree
+  as two nodes, both reading "167" (F4.3). Needs `role="img"` + a position description, and labelled
+  pip counts
+- Every board highlight fails the 3:1 non-text contrast bar, the legal-destination blue at 1.13:1
+  against the light triangles (F4.6). Do this with the colour-unification item above, not separately
+- Focus visibility is entirely inherited from the browser, never designed (F4.2)
+- The dark checkers are barely distinguishable from the board — 1.34:1 against the felt, legible only
+  via a 1.5px outline that is sub-pixel on a phone (F4.7)
+- Nothing respects `prefers-reduced-motion`, and the app animates a great deal (F4.8). `animateHop`
+  already has a documented `speedMs <= 0` fast path to hang it on
+
+**Mobile, beyond the breakpoint that has landed**
+
+- Every board tap target on a phone is far under the 44px guideline: point triangle 21px, checker
+  11px, bear-off tray 14px (F3.2). The report is explicit that the honest fix is a mobile *layout*,
+  not bigger hit boxes on the current one
+- On a phone the board gets 22% of the screen while 41% of it sits blank below the footer (F3.4).
+  Letting the history log collapse on small screens would roughly double the board
+
+**Colour — one coherent pass, with the colour-unification item above**
+
+- The same colour means two different things, and one meaning changes colour halfway through the
+  interaction (F1.8) — a combined destination is amber `#fbbf24` before selection and blue `#60a5fa`
+  after (F1.15, confirmed by measurement)
+- Ten of twenty-six board locations light up in three hues at two opacities before the player has
+  expressed any intent (F1.14). Note the report argues the *reverse* of the "drop the green
+  highlight" item above: keep the green sources, drop the whole-turn preview, since the preview never
+  says *which* checker goes there
+
+**Interaction and polish**
+
+- A forced "no legal move" turn passes with no feedback at all — the dice are nulled the instant the
+  response lands, so a dance is invisible except as a "(no move)" row in the log (F1.4)
+- The "Roll" button appears once, is clicked once, then vanishes forever (F1.9). Either auto-roll the
+  first roll too, or keep it present-but-disabled
+- Everything on the board says "clickable" via an unconditional `cursor: pointer`, including the AI's
+  checkers and the whole board during the AI's turn (F1.13)
+- You cannot deselect a checker by clicking it again; cancelling means knowing to click something
+  irrelevant (F2.5)
+- Switching opponent mid-game is invisible in the history — every opponent turn is labelled "AI"
+  (F2.8)
+- The initial loading state is the bare word "Loading..." — against Render's cold start this is the
+  first thing a visitor sees for up to 30 seconds (F1.19)
+- The page scrolls vertically on a standard laptop viewport (F1.7). May be partly improved by the
+  history log now sizing to its content — re-measure before acting
+- The page has essentially no typographic hierarchy (F1.17)
+- The internal game UUID is printed in the player-facing footer (F1.10). Shortening it also stops a
+  screenshot handing a bystander a usable handle to play the other side (F7.4)
+- The opponent is called three different things across the UI (F1.18) — this is the "revamp the term
+  AI" item above, found independently
+
+**Backend and ops**
+
+- `newGame` has no in-flight guard, unlike `aiMove` — eight rapid clicks fire eight `POST /game/new`.
+  The UI stays correct, so it is a resource bug, not a correctness one (F2.6)
+- No JSON 500 handler: an unhandled engine exception reaches the client as the plain-text string
+  `Internal Server Error`, so the frontend cannot tell "the server is broken" from "unreachable"
+  (F2.4)
+- `GET /version` reports a stale commit under `uvicorn --reload` — locally it can name a commit that
+  is not what is running, the one thing the endpoint exists to prevent (F0.1)
+- Python dependencies are floors, not pins, and the production image installs the `[dev]` extra, so
+  pytest and ruff ship to production and no rebuild is reproducible (F7.6)
+- What `ALLOWED_ORIGINS` is actually set to on Render is unknown and unreviewable — it lives in the
+  dashboard, not the repo (F7.1). A `render.yaml` would fix that
+- **The deployed API is well behind `main`** (F7.7 measured three commits; it is now far more,
+  including the bear-off blocker fix). The live demo is still serving the 500 that ends most games
+
+**Nits**
+
+- Stale comments describe a strike-through that was replaced by dimming (F1.11)
+- `Math.random()` in the dice tumble — the report checked and says this is *fine* (decorative values
+  that never leave the component; the real dice come from the server); it wants a comment saying so,
+  not a change (F1.12)
+- Occupied points render two elements carrying the same `data-point-idx` (F1.16)
+
 ## Done
 
 - **Full UI review** — done as an unattended overnight QA pass (`qa/report.md`; the harness and the

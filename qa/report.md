@@ -34,9 +34,9 @@ Ordered by damage ÷ effort, not by severity alone.
 > | 1 | bear-off overage 500 | **done** — `b84b8b0`, with the session-wedge reorder and 3 tests; 100 API-driven games across 4 seeds now finish clean, vs 14/25 and 19/25 dying before |
 > | 2 | Pydantic constraints on `GameStateModel` | **done** — `788f5c1`, with the typed `get_engine` error; 15 new assertions, all checked to fail against the old code |
 > | 3 | cap the game store | **done** — `788f5c1`, LRU rather than plain FIFO |
-> | 4 | the game-over moment | **done** — overlay panel scoped to the board, dismissible; also lands `role="status"` from item 6 |
+> | 4 | the game-over moment | **done** — overlay panel scoped to the board, dismissible |
 > | 5 | animation cleanup invariant | open |
-> | 6 | two accessibility attributes | open |
+> | 6 | two accessibility attributes | **done** — `f9282c5` |
 > | 7 | the first responsive breakpoint | open |
 > | 8 | everything else | open — and note this one is a compressed list of a dozen-odd things that needs unpacking into real items when reached |
 >
@@ -197,6 +197,21 @@ frequency on a visible tab is not something I measured.*
 ### 6. Two attributes for accessibility — F4.4 — **highest value per character in the report**
 `role="status"` on the status line and `role="alert"` on the error banner. The frontend contains
 **zero** `aria-` attributes, so turn changes, the dice, the game result and every error are silent.
+
+> **↩ Follow-up — done in `f9282c5`.** Both attributes are in. The measurement the finding used
+> now returns 1 mid-game and 2 with an error showing, against 0 before.
+>
+> One thing the two-attribute framing didn't anticipate: item 4's result panel had also been given
+> `role="status"`, which would have announced the outcome **twice**. Resolved by making the status
+> line the single live region and giving it the *whole* result sentence — "You win by gammon" rather
+> than just "You win" — with the panel deliberately not a live region. A shared `lib/result.ts`
+> renders the wording for both, so the panel and the announcement can't drift apart. A screen-reader
+> user now hears the win type even though it only appears visually inside the panel, and still hears
+> it if the panel has been dismissed.
+>
+> Verified live: the region updates "Your turn — roll the dice" → "Your move" on a real roll, the
+> error banner announces as `role="alert"` when `fetch` is patched to fail, and at game over there is
+> exactly one status region carrying the full sentence.
 The bigger accessibility findings (the game is unplayable by keyboard — only two focusable elements
 exist in the entire app; the board contributes nothing to the accessibility tree except two nodes
 reading "167") are real but are proper projects. These two attributes are not.

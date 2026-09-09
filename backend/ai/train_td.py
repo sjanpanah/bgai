@@ -117,7 +117,9 @@ class Traces:
         self.W2.fill(0.0)
         self.b2 = 0.0
 
-    def accumulate(self, net: NeuralNet, x: np.ndarray, h: np.ndarray, y: float, lam: float) -> None:
+    def accumulate(
+        self, net: NeuralNet, x: np.ndarray, h: np.ndarray, y: float, lam: float
+    ) -> None:
         """`e <- -lambda*e + grad V(s_t)` — see the class docstring for the sign."""
         dW1, db1, dW2, db2 = net.gradient(x, h, y)
         if lam == 0.0:  # one-step TD: the trace is just the current gradient
@@ -361,7 +363,11 @@ def train(config: TrainConfig) -> NeuralNet:
     print(
         f"{'stopped' if interrupted else 'done'} after {game} games "
         f"({total_trained} total) in {_format_duration(time.time() - started)} -> {config.out}"
-        + (f" (best vs {config.gate_opponent}: {best_gate_rate:.0%})" if best_gate_rate >= 0 else ""),
+        + (
+            f" (best vs {config.gate_opponent}: {best_gate_rate:.0%})"
+            if best_gate_rate >= 0
+            else ""
+        ),
         flush=True,
     )
     if interrupted:

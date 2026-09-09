@@ -175,9 +175,7 @@ def _signature(state: GameState) -> tuple:
     return (tuple(state.board), tuple(state.bar), tuple(state.off))
 
 
-def combined_moves(
-    state: GameState, player: int, remaining: list[int]
-) -> list[tuple[Move, Move]]:
+def combined_moves(state: GameState, player: int, remaining: list[int]) -> list[tuple[Move, Move]]:
     """Two-hop combos: pairs of legal single-die moves that together move one
     checker using two of `remaining`'s dice (e.g. 3+2 = 5 away), so the UI can
     offer them as a single drag. Each result is (first_move, second_move); the
@@ -222,8 +220,4 @@ def combined_moves(
             signature = _signature(apply_move(mid_state, player, m2))
             by_key.setdefault(key, {}).setdefault(signature, (m1, m2))
 
-    return [
-        next(iter(variants.values()))
-        for variants in by_key.values()
-        if len(variants) == 1
-    ]
+    return [next(iter(variants.values())) for variants in by_key.values() if len(variants) == 1]

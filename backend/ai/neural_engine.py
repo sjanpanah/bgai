@@ -32,7 +32,9 @@ def _load_default_net() -> NeuralNet:
 
 
 class NeuralEngine:
-    def __init__(self, net: NeuralNet | None = None, weights_path: str | Path | None = None) -> None:
+    def __init__(
+        self, net: NeuralNet | None = None, weights_path: str | Path | None = None
+    ) -> None:
         if net is not None:
             self.net = net
         elif weights_path is not None:

@@ -120,7 +120,15 @@ function App() {
     if (humansTurn && !isRolling && !isAnimating && hasRolledOnce) {
       roll();
     }
-  }, [state, gameOver, humansTurn, isRolling, isAnimating, hasRolledOnce, roll]);
+  }, [
+    state,
+    gameOver,
+    humansTurn,
+    isRolling,
+    isAnimating,
+    hasRolledOnce,
+    roll,
+  ]);
 
   const selectableSources = useMemo(() => {
     if (!humansTurn || !isRolling || isAnimating) return [];
@@ -144,12 +152,14 @@ function App() {
   // Dim, whole-turn preview shown before any source is picked: every
   // destination reachable by *some* checker this turn, direct or combined.
   const previewDirect = useMemo(() => {
-    if (!humansTurn || !isRolling || isAnimating || selectedSource !== null) return [];
+    if (!humansTurn || !isRolling || isAnimating || selectedSource !== null)
+      return [];
     return [...new Set(legalMoves.map((m) => m.target))];
   }, [humansTurn, isRolling, isAnimating, selectedSource, legalMoves]);
 
   const previewCombined = useMemo(() => {
-    if (!humansTurn || !isRolling || isAnimating || selectedSource !== null) return [];
+    if (!humansTurn || !isRolling || isAnimating || selectedSource !== null)
+      return [];
     return [...new Set(combinedMoves.map((c) => c.second.target))];
   }, [humansTurn, isRolling, isAnimating, selectedSource, combinedMoves]);
 

@@ -38,7 +38,7 @@ Ordered by damage ÷ effort, not by severity alone.
 > | 5 | animation cleanup invariant | **done** — `f7df08a`; reproduced the real wedge and verified the fix against it |
 > | 6 | two accessibility attributes | **done** — `f9282c5` |
 > | 7 | the first responsive breakpoint | **done** — `17f4c63`; no overflow from 320px up |
-> | 8 | everything else | **partly done** — the trivial two-thirds landed (`14911ee`, `b819655`, `010216c`, `fd2881b`); the two substantial ones (`describeError`, reload persistence) and the highlight-contrast work are still open |
+> | 8 | everything else | **partly done** — the trivial two-thirds landed (`14911ee`, `b819655`, `010216c`, `fd2881b`); `describeError` and the highlight-contrast work are still open; reload persistence is deferred to the accounts item in BACKLOG.md |
 >
 > **↩ Follow-up — a second, independent plan, preserved.** Before any of the above was worked, a
 > reading of this report produced its own ordering. It covers roughly a third of the report (~15 of
@@ -293,6 +293,8 @@ phone in portrait. Stack the header below `sm` and let the select shrink. Tablet
 - `describeError` shows the player raw server strings for everything except a network failure —
   including a V8 parser error for a non-JSON 200, which is the likeliest real cold-start failure (F5.1).
 - Reloading mid-game silently destroys it (F2.7); the serialization to prevent that already exists.
+  > **↩ Follow-up:** deferred to the accounts/run-history item in BACKLOG.md — new game on reload is
+  > accepted behaviour for now. Reasoning in the follow-up on F2.7 itself.
 - The bar carries the identical `fill="none"` hit-test hole the bear-off tray was fixed for in the
   most recent commit on the branch, thirty lines away in the same file (F3.3).
 - `npm audit fix` (F7.5), `ruff format` + `prettier` (F0.2/F0.3), a `didInit` guard on `useEngines`
@@ -1014,6 +1016,27 @@ re-fetching on load is most of the work.
 position — that endpoint (or returning state from a cheap no-op) is the missing piece.
 *Suggested fix:* persist `gameId`, add `GET /game/{id}` to rehydrate, and fall back to a new game if
 the id is unknown (which it will be after any server restart, since the store is in-memory).
+
+> **↩ Follow-up — deferred, deliberately, to the accounts work in BACKLOG.md.** Starting a new game
+> on reload is accepted behaviour for now. The analysis that led there, recorded because it is the
+> reason this isn't simply "persist the id":
+>
+> - Resuming by `game_id` would work in local dev and mostly **fail in production**. The store is
+>   in-memory and Render's free tier spins down when idle, so a stored id is worthless after ~15
+>   minutes — exactly the gap after which a player expects their game to still be there. A feature
+>   that works on the developer's machine and not the deployed one is the worst way to be wrong.
+> - The server session is only `{state, remaining_dice}`. The move history, the rolled dice *pair*
+>   and the partial turn are client-only, so an id-based resume restores the board but not the log,
+>   and cannot honestly redraw a partly-played roll — the server keeps what is *unplayed*, not what
+>   was rolled.
+> - The robust version persists the *position* rather than a pointer to it, which means trusting a
+>   client-supplied `GameState`. Harmless today; a way to fabricate a win the moment results are
+>   recorded against an account. That trust boundary is what ties this to the auth design.
+> - Two adjacent unknowns are also account-shaped: two tabs would share one `game_id` and silently
+>   fight over the same session, and there is no notion of a game belonging to anyone (F7.4).
+>
+> All of this now lives on the "run history, users, login" item in BACKLOG.md, which was widened to
+> cover where a game lives, not just what happens to it after it ends.
 
 **F2.8 — nit — switching opponent mid-game is invisible in the history**
 *Where:* `frontend/src/components/MoveHistory.tsx` — every opponent turn is labelled "AI".

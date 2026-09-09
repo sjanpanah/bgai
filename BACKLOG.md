@@ -42,11 +42,32 @@ if it needs more.
 
 - Add a `wildbg` engine (open-source neural reference, HTTP API in local Docker) — plan drafted,
   needs strong nets from the `nets` branch swapped in before build since they're `include_bytes!`d
-- Exploration: run history, users, and login — persist completed games (result, engine played,
-  moves/dice) instead of losing them at game-over, and gate that history behind actual user
-  accounts. Bigger than anything else here: needs an auth story (sessions? OAuth?), a users
-  table, a run-history schema tied to `GameState`'s serialization, and endpoints/UI to browse
-  past games. No decisions made yet — scope this out before committing to an approach
+- Exploration: run history, users, login — and where a game actually lives. Persist completed
+  games (result, engine played, moves/dice) instead of losing them at game-over, gate that
+  history behind real accounts, and resolve session persistence as part of the same design.
+  Bigger than anything else here: needs an auth story (sessions? OAuth?), a users table, a
+  run-history schema tied to `GameState`'s serialization, and endpoints/UI to browse past games.
+  No decisions made yet — scope this out before committing to an approach.
+
+  **Session persistence belongs here, not as a standalone fix.** Reloading the page currently
+  starts a new game (`useGame` calls `newGame()` on mount and nothing persists `game_id`) — that
+  is accepted behaviour for now, deliberately, because a proper fix runs straight into the
+  questions above. What the QA pass established about it (`qa/report.md`, F2.7):
+  - The server session is only `{state, remaining_dice}`. The move history, the rolled dice
+    *pair*, and the partial turn are client-only React state, so resuming by id alone would
+    restore the board but not the log, and could not honestly redraw a partly-played roll.
+  - Resuming by `game_id` would work locally and mostly fail in production: the store is
+    in-memory and Render's free tier spins the instance down when idle, so a stored id is
+    worthless after ~15 minutes — exactly the gap after which a player expects their game back.
+  - The robust alternative is persisting the *position* (client-side, then recreated
+    server-side) rather than a pointer to it. That means trusting a client-supplied `GameState`
+    — harmless today, but the moment results are recorded against an account it becomes a way
+    to fabricate a win. That trust boundary is the reason this waits for the auth design.
+  - Also unresolved and account-shaped: two tabs would share one `game_id` and silently fight
+    over the same server session, and there is no notion of a game belonging to anyone (knowing
+    an id is enough to play it — F7.4).
+  - There is no `GET /game/{id}`; any resume story needs one, and it is the natural sibling of
+    the stateless `POST /engine/move` the API already has.
 
 ### Docs / process
 

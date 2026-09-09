@@ -37,7 +37,7 @@ Ordered by damage ÷ effort, not by severity alone.
 > | 4 | the game-over moment | **done** — overlay panel scoped to the board, dismissible |
 > | 5 | animation cleanup invariant | **done** — `f7df08a`; reproduced the real wedge and verified the fix against it |
 > | 6 | two accessibility attributes | **done** — `f9282c5` |
-> | 7 | the first responsive breakpoint | open |
+> | 7 | the first responsive breakpoint | **done** — `17f4c63`; no overflow from 320px up |
 > | 8 | everything else | open — and note this one is a compressed list of a dozen-odd things that needs unpacking into real items when reached |
 >
 > **↩ Follow-up — a second, independent plan, preserved.** Before any of the above was worked, a
@@ -265,6 +265,24 @@ reading "167") are real but are proper projects. These two attributes are not.
 Below **500 CSS pixels** the page scrolls horizontally, because the engine `<select>` is sized by its
 longest option ("Very Hard (Neural Network)") at a fixed 217px inside a flexbox header. That is every
 phone in portrait. Stack the header below `sm` and let the select shrink. Tablet is already fine.
+
+> **↩ Follow-up — done in `17f4c63`** (F3.1). The header stacks below `sm`, and the select is allowed to
+> shrink. The load-bearing part is `min-w-0`: a flex item defaults to `min-width: auto`, so the
+> select's intrinsic width — set by its longest option — was a hard floor no amount of `max-width`
+> would have overridden. Swept with an off-screen iframe rather than one viewport:
+>
+> | width | 320 | 360 | 375 | 414 | 480 | 499 | 500 | 640 | 768 |
+> |---|---|---|---|---|---|---|---|---|---|
+> | overflows | no | no | no | no | no | no | no | no | no |
+>
+> At 375 `scrollWidth` is 375 against the 435 measured before, with nothing past the right edge.
+> Tablet and desktop are untouched — still one row, select still at its natural 217px.
+>
+> **What the phone screenshot then made obvious**, and this item does not fix: the layout is no longer
+> *broken* but it is still badly proportioned. The empty move-history log holds a fixed `h-48` while
+> the board is squeezed into a fraction of the screen and a large band below the footer sits empty —
+> exactly the proportion problem F3.2 and F3.4 describe. Letting the log size to its content
+> (`max-h-48`) is the cheap half of that and is listed under item 8.
 
 ### 8. Everything else, roughly in order
 - Board highlights fail WCAG non-text contrast — the *legal destination* blue measures **1.13:1**

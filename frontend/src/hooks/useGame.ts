@@ -12,14 +12,65 @@ import type {
 
 const HUMAN = 0;
 
-async function postJson(url: string, body?: unknown) {
+/** An HTTP error carrying the status and, when the server sent one, FastAPI's
+ *  `detail` string. Without the status the banner can't tell "you did something
+ *  the rules don't allow" from "the server fell over". */
+class ApiError extends Error {
+  status: number;
+  detail: string | null;
+
+  constructor(status: number, detail: string | null, rawBody: string) {
+    super(`HTTP ${status}: ${detail ?? rawBody}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+/** The response wasn't JSON at all. The likeliest real cause is a proxy or
+ *  interstitial page served as HTML with a 200 during a cold start — which used
+ *  to reach the player as a V8 parser message. */
+class MalformedResponseError extends Error {
+  constructor(rawBody: string) {
+    super(`Non-JSON response: ${rawBody.slice(0, 200)}`);
+    this.name = "MalformedResponseError";
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- response shapes
+// are validated by the callers' own destructuring, as they were when this
+// returned `res.json()` directly.
+async function postJson(url: string, body?: unknown): Promise<any> {
   const res = await fetch(url, {
     method: "POST",
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+
+  // Read as text and parse by hand: `res.json()` throws a parser error that is
+  // meaningless to a player, and on an error response the body has to be read
+  // anyway to recover `detail`.
+  const raw = await res.text();
+  let parsed: unknown;
+  try {
+    parsed = raw ? JSON.parse(raw) : undefined;
+  } catch {
+    parsed = undefined;
+  }
+
+  if (!res.ok) {
+    // FastAPI sends `detail` as a string for the errors this API raises by hand,
+    // but as an array of validation objects for a 422 — only the string form is
+    // worth showing anyone.
+    const detail = (parsed as { detail?: unknown } | undefined)?.detail;
+    throw new ApiError(
+      res.status,
+      typeof detail === "string" ? detail : null,
+      raw,
+    );
+  }
+  if (parsed === undefined) throw new MalformedResponseError(raw);
+  return parsed;
 }
 
 // fetch rejects with a TypeError when it can't reach the host at all. That is the
@@ -32,11 +83,37 @@ function describeError(err: unknown): string {
   if (err instanceof TypeError) {
     return "Can't reach the server — it may be waking up, which takes about 30 seconds.";
   }
-  const message = err instanceof Error ? err.message.trim() : "";
-  if (!message) return "Something went wrong talking to the server.";
-  // postJson rethrows the raw response body, which for a validation error is a
-  // JSON blob: readable in the console, unreadable in a one-line banner.
-  return message.length > 200 ? `${message.slice(0, 200)}…` : message;
+  if (err instanceof MalformedResponseError) {
+    return "Got an unexpected response from the server — try again.";
+  }
+  if (err instanceof ApiError) {
+    // A 5xx is never the player's doing and its body is never useful to them.
+    if (err.status >= 500) {
+      return "Something went wrong on the server — try again.";
+    }
+    if (err.detail) return describeDetail(err.detail);
+    return "The server rejected that — try again.";
+  }
+  return "Something went wrong talking to the server.";
+}
+
+// The server's own wording is accurate but written for an API, not a player:
+// these are the four 4xx details the game endpoints raise. Anything not listed
+// falls through to the server's own string rather than being swallowed, so a
+// new error stays visible instead of becoming "something went wrong".
+const DETAIL_COPY: Record<string, string> = {
+  "no such game": "That game is no longer on the server — start a new one.",
+  "illegal move": "That move isn't legal.",
+  "a turn is already in progress": "That turn is already underway.",
+  "no roll in progress": "Roll the dice first.",
+};
+
+function describeDetail(detail: string): string {
+  const known = DETAIL_COPY[detail.trim().toLowerCase()];
+  if (known) return known;
+  const trimmed = detail.trim();
+  const sentence = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  return sentence.length > 200 ? `${sentence.slice(0, 200)}…` : sentence;
 }
 
 export function useGame() {

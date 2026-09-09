@@ -34,7 +34,7 @@ Ordered by damage ÷ effort, not by severity alone.
 > | 1 | bear-off overage 500 | **done** — `b84b8b0`, with the session-wedge reorder and 3 tests; 100 API-driven games across 4 seeds now finish clean, vs 14/25 and 19/25 dying before |
 > | 2 | Pydantic constraints on `GameStateModel` | **done** — `788f5c1`, with the typed `get_engine` error; 15 new assertions, all checked to fail against the old code |
 > | 3 | cap the game store | **done** — `788f5c1`, LRU rather than plain FIFO |
-> | 4 | the game-over moment | open |
+> | 4 | the game-over moment | **done** — overlay panel scoped to the board, dismissible; also lands `role="status"` from item 6 |
 > | 5 | animation cleanup invariant | open |
 > | 6 | two accessibility attributes | open |
 > | 7 | the first responsive breakpoint | open |
@@ -154,6 +154,33 @@ English, a leaked engine field (`multiplier`), and no visual weight at all — l
 error banner. The only way to play again is a small outlined button 300px away in the header. Say
 "You win!" / "AI wins", name the win type in words ("by gammon", "by backgammon") only when there is
 one, give it a result panel, and put New game inside it.
+
+> **↩ Follow-up — done in `da3e00a`** (F1.1/F1.2/F1.3). New `components/GameResult.tsx`: a card
+> centred on a scrim, with "You win" / "AI wins", a second line only when the win type is real, and
+> New game inside it.
+>
+> Three decisions that depart from or extend the suggestion, all deliberate:
+>
+> - **The scrim covers the board, not the page.** Scoped to a `relative` wrapper around `<Board>`, so
+>   the move history, dice row and footer stay live — a finished game can still be read, selected and
+>   screenshotted. A page-level scrim would have taken that away.
+> - **The panel is dismissible** ("View board", or clicking the scrim), because the overlay is the
+>   only one of the layouts considered that hides the final position, and that position is worth
+>   inspecting. `gameOver` stays in state; the header's New game button is visible by then anyway.
+>   Dismissal is keyed by `gameId` so a new game never inherits it.
+> - **No "(2 points)".** The report suggested naming the points; the app tracks no score, so that
+>   would name a scoring system v1.0 doesn't have. The multiplier is translated to words and never
+>   shown as a number.
+>
+> Colour: one new token set (`--color-win`, `-surface`, `-line`, a warm gold from the board's own
+> materials) for a win; a loss keeps the neutral ink/line. Deliberately *not* the red danger tokens —
+> losing an ordinary game is not an error, and red is what this app already uses to say something
+> broke. Contrast computed rather than eyeballed: win text 8.2:1 on its card, win-line 4.4:1, and the
+> "View board" link moved from `dim` (3.47:1 — a fail) to `muted` (5.05:1).
+>
+> Verified in a browser across all three cases (plain win, gammon win, backgammon loss): the scrim's
+> rect does not overlap the log's, `elementFromPoint` over the log returns the log, clicking the card
+> does not dismiss while clicking the scrim does, and the console is clean.
 
 ### 5. Guarantee animations clean up after themselves — F2.1 / F5.2 — **four lines of invariant**
 *Effort: a `try/finally`, a timeout, and one assertion. Damage: a frozen or a lying board.*

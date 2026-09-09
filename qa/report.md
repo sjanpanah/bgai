@@ -38,7 +38,7 @@ Ordered by damage ÷ effort, not by severity alone.
 > | 5 | animation cleanup invariant | **done** — `f7df08a`; reproduced the real wedge and verified the fix against it |
 > | 6 | two accessibility attributes | **done** — `f9282c5` |
 > | 7 | the first responsive breakpoint | **done** — `17f4c63`; no overflow from 320px up |
-> | 8 | everything else | **partly done** — the trivial two-thirds landed (`14911ee`, `b819655`, `010216c`, `fd2881b`); `describeError` and the highlight-contrast work are still open; reload persistence is deferred to the accounts item in BACKLOG.md |
+> | 8 | everything else | **partly done** — the trivial two-thirds landed (`14911ee`, `b819655`, `010216c`, `fd2881b`); only the highlight-contrast work is still open (it belongs with the colour-unification ticket); reload persistence is deferred to the accounts item in BACKLOG.md |
 >
 > **↩ Follow-up — a second, independent plan, preserved.** Before any of the above was worked, a
 > reading of this report produced its own ordering. It covers roughly a third of the report (~15 of
@@ -292,6 +292,7 @@ phone in portrait. Stack the header below `sm` and let the select shrink. Tablet
 - The dice row unmounts on the AI's turn, so the page jumps ~48px twice every turn (F1.5). One line.
 - `describeError` shows the player raw server strings for everything except a network failure —
   including a V8 parser error for a non-JSON 200, which is the likeliest real cold-start failure (F5.1).
+  > **↩ Follow-up:** done in `20b080a` — see the follow-up on F5.1.
 - Reloading mid-game silently destroys it (F2.7); the serialization to prevent that already exists.
   > **↩ Follow-up:** deferred to the accounts/run-history item in BACKLOG.md — new game on reload is
   > accepted behaviour for now. Reasoning in the follow-up on F2.7 itself.
@@ -1517,6 +1518,39 @@ FastAPI's shape for every 4xx this API raises — "no such game", "illegal move"
 progress", all of which are genuinely showable). Then in `describeError`, map by status class: 4xx →
 the `detail` string, 5xx → "Something went wrong on the server — try again", parse failure → "Got an
 unexpected response from the server."
+
+> **↩ Follow-up — done in `20b080a`.** Built as suggested, with two typed errors so the status reaches
+> the banner: `ApiError` (status + FastAPI's `detail`) and `MalformedResponseError`. `postJson` now
+> reads the body as text and parses it by hand — `res.json()` was itself the source of the V8 parser
+> message, and an error response has to be read for `detail` anyway.
+>
+> Two things the suggestion didn't cover, both found by testing rather than reading:
+>
+> - **FastAPI sends `detail` as an *array* for a 422**, not a string, so lifting it blindly would have
+>   swapped one JSON blob for another. Only a string `detail` is shown; an array falls back to "The
+>   server rejected that — try again."
+> - **The four detail strings are accurate but written for an API.** "a turn is already in progress"
+>   is not a sentence anyone should read mid-game. They're mapped to player copy ("That turn is
+>   already underway", "That move isn't legal", "That game is no longer on the server — start a new
+>   one", "Roll the dice first"), with anything unmapped falling through to the server's own wording
+>   capitalised — so a *new* server error stays visible instead of being swallowed into "something
+>   went wrong".
+>
+> Full detail is still `console.error`'d with status, detail and raw body, so debuggability is
+> unchanged; only what the player sees got friendlier. Verified against eight injected responses:
+>
+> | injected | banner |
+> |---|---|
+> | network unreachable | Can't reach the server — it may be waking up… *(unchanged)* |
+> | 500 / 503 | Something went wrong on the server — try again. |
+> | non-JSON 200 `<html>proxy error</html>` | Got an unexpected response from the server — try again. |
+> | 404 `no such game` | That game is no longer on the server — start a new one. |
+> | 400 `illegal move` | That move isn't legal. |
+> | 422 validation array | The server rejected that — try again. |
+> | 400 unrecognised detail | *(the server's own wording, capitalised)* |
+>
+> Recovery still works: after each injected failure the banner clears and the game plays on from the
+> correct position, 30 checkers, clean console.
 
 **F5.2 — major — an abandoned animation leaves a checker missing from the board, silently, with no error**
 *Where:* `frontend/src/hooks/useAnimatedBoard.ts:107-112` — `animateHop` calls

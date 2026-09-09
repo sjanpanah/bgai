@@ -96,8 +96,11 @@ def roll(game_id: str) -> RollResponse:
         session.state.turn = 1 - session.state.turn
         return RollResponse(dice=dice, legal_moves=[], state=session.state.to_dict())
 
-    session.remaining_dice = values
+    # Build the response before touching the session: a failure in here would
+    # otherwise leave the session believing a turn is in progress while the
+    # client holds an error and no legal moves, wedging the game permanently.
     combos = compute_combined_moves(session.state, session.state.turn, values)
+    session.remaining_dice = values
     return RollResponse(
         dice=dice,
         legal_moves=_as_models(next_moves),
@@ -124,18 +127,23 @@ def move(game_id: str, body: MoveRequest) -> MoveResponse:
         for die in sorted(set(session.remaining_dice))
         if submitted in legal_single_die_moves(session.state, player, die)
     )
-    session.state = apply_move(session.state, player, submitted)
+    # `apply_move` returns a new state, so the whole response is built off
+    # locals and the session is only updated once nothing else can fail —
+    # otherwise an error partway through leaves the session mid-turn with the
+    # client unable to continue or retry, which costs the player the game.
+    new_state = apply_move(session.state, player, submitted)
     remaining = list(session.remaining_dice)
     remaining.remove(die_used)
 
-    game_over = _game_over(session.state, player)
-    next_moves = [] if game_over else legal_next_moves(session.state, player, remaining)
+    game_over = _game_over(new_state, player)
+    next_moves = [] if game_over else legal_next_moves(new_state, player, remaining)
     turn_complete = game_over is not None or not remaining or not next_moves
 
     if turn_complete:
-        session.remaining_dice = None
         if game_over is None:
-            session.state.turn = 1 - player
+            new_state.turn = 1 - player
+        session.state = new_state
+        session.remaining_dice = None
         return MoveResponse(
             state=session.state.to_dict(),
             legal_moves=[],
@@ -143,8 +151,9 @@ def move(game_id: str, body: MoveRequest) -> MoveResponse:
             game_over=game_over,
         )
 
+    combos = compute_combined_moves(new_state, player, remaining)
+    session.state = new_state
     session.remaining_dice = remaining
-    combos = compute_combined_moves(session.state, player, remaining)
     return MoveResponse(
         state=session.state.to_dict(),
         legal_moves=_as_models(next_moves),

@@ -1,5 +1,12 @@
-from engine.moves import apply_turn, combined_moves, legal_next_moves, legal_turn_sequences
-from engine.state import PLAYER_0, GameState, Move
+from engine.moves import (
+    apply_move,
+    apply_turn,
+    combined_moves,
+    legal_next_moves,
+    legal_single_die_moves,
+    legal_turn_sequences,
+)
+from engine.state import OFF, PLAYER_0, PLAYER_1, Dice, GameState, Move
 
 
 def _empty_state(turn=PLAYER_0):
@@ -127,3 +134,66 @@ def test_doubles_allow_four_moves():
     assert sequences == [
         [Move(20, 18), Move(18, 16), Move(16, 14), Move(14, 12)],
     ]
+
+
+def test_combined_moves_survives_bear_off_overage():
+    """Bearing off with overage legally plays a die *larger* than the distance
+    to the edge, so recovering the consumed die by arithmetic names a die the
+    player doesn't hold and `remove` raises. This 500'd the API for most games
+    that reached bear-off. Two checkers on the 5-point matter: playing the
+    overage bear-off first still leaves the other checker to play the 1, so the
+    sequence survives max-length filtering and the faulty die lookup is reached.
+    """
+    state = _empty_state()
+    state.board[4] = 2  # the 5-point (distance 5), borne off by the 6 as overage
+    state.board[23] = -2
+    state.off = [13, 13]
+    # No combo exists here -- after 4->3 the overage still bears off from 4, not
+    # from 3 -- so the assertion that matters is that it returns at all.
+    assert combined_moves(state, PLAYER_0, [1, 6]) == []
+
+
+def test_combined_moves_offers_a_combo_ending_in_an_overage_bear_off():
+    """The second hop bears off with overage once the first hop clears the
+    higher point: 6->5 with the 1, then off from the 5-point with the 6."""
+    state = _empty_state()
+    state.board[4] = 2
+    state.board[5] = 1  # the 6-point; vacating it is what makes the overage legal
+    state.board[23] = -2
+    state.off = [12, 13]
+    assert combined_moves(state, PLAYER_0, [1, 6]) == [(Move(5, 4), Move(4, OFF))]
+
+
+def test_combined_moves_never_raises_over_random_games():
+    """The bear-off-overage crash slipped past 123 tests because no test ever
+    called `combined_moves` on a bear-off position. Play whole games and call
+    it at every position reached, which is how the bug was actually found."""
+    for seed in range(20):
+        dice = Dice(seed)
+        state = GameState.new_game()
+        for _ in range(400):
+            player = state.turn
+            values = list(dice.roll())
+            if values[0] == values[1]:
+                values = values * 2
+
+            remaining = list(values)
+            while remaining:
+                # The call under test: it must survive every position a real
+                # game reaches, bear-off and overage included.
+                combined_moves(state, player, remaining)
+                moves = legal_next_moves(state, player, remaining)
+                if not moves:
+                    break
+                move = moves[0]
+                die = next(
+                    d
+                    for d in sorted(set(remaining))
+                    if move in legal_single_die_moves(state, player, d)
+                )
+                state = apply_move(state, player, move)
+                remaining.remove(die)
+
+            if state.off[PLAYER_0] == 15 or state.off[PLAYER_1] == 15:
+                break
+            state.turn = 1 - player

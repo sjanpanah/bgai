@@ -202,7 +202,16 @@ def combined_moves(
     # to offer as a single click.
     by_key: dict[tuple[int, int], dict[tuple, tuple[Move, Move]]] = {}
     for m1 in legal_next_moves(state, player, remaining):
-        die = _die_used(player, m1)
+        # Ask which die makes the move legal rather than deriving it from the
+        # distance travelled: bearing off with overage legally plays a die
+        # *larger* than the distance, so arithmetic names a die the player may
+        # not hold and `remove` raises. sorted() prefers the exact die when
+        # both would serve; that can't change the result here (a bear-off is
+        # never the first hop of a combo, since nothing can move on from OFF)
+        # but it keeps the rule the same one `move()` in routers/game.py uses.
+        die = next(
+            d for d in sorted(set(remaining)) if m1 in legal_single_die_moves(state, player, d)
+        )
         next_remaining = list(remaining)
         next_remaining.remove(die)
         mid_state = apply_move(state, player, m1)

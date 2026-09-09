@@ -17,6 +17,7 @@ if it needs more.
 
 ### UI / UX
 
+- explore having the first roll be a toss up
 - Unify colors across the app — right now colors get picked ad hoc per feature (e.g. the move
   history log shipped with placeholder blue/green for AI/You that don't match the app's actual
   brown/cream palette or the board's checker colors). Needs one deliberate pass: decide how

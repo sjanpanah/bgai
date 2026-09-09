@@ -8,6 +8,7 @@ import { useAnimatedBoard } from "./hooks/useAnimatedBoard";
 import { useEngines } from "./hooks/useEngines";
 import { useGame } from "./hooks/useGame";
 import { useVersion } from "./hooks/useVersion";
+import { resultSentence } from "./lib/result";
 import { FRONTEND_COMMIT, FRONTEND_SHORT } from "./lib/version";
 
 const ENGINE_STORAGE_KEY = "bgai.engine";
@@ -225,7 +226,10 @@ function App() {
   return (
     <div className="max-w-4xl mx-auto p-4 flex flex-col gap-4">
       {error && (
-        <div className="flex items-center justify-between gap-4 border border-danger-line bg-danger-surface text-danger rounded px-3 py-2 text-sm">
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-4 border border-danger-line bg-danger-surface text-danger rounded px-3 py-2 text-sm"
+        >
           <span>{error}</span>
           <div className="flex items-center gap-2 shrink-0">
             {/* The AI turn is driven by an effect whose deps don't change when the
@@ -303,11 +307,12 @@ function App() {
             </button>
           )}
         </div>
-        <p>
+        {/* The app's only channel for whose turn it is and how the game ended,
+            and it used to change silently. It carries the whole result sentence
+            so a screen reader hears the win type even when the panel is dismissed. */}
+        <p role="status">
           {gameOver
-            ? gameOver.winner === human
-              ? "You win"
-              : "AI wins"
+            ? resultSentence(gameOver.winner === human, gameOver.multiplier)
             : humansTurn
               ? isRolling
                 ? "Your move"

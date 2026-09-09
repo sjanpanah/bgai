@@ -50,7 +50,7 @@ class GameState:
     turn: int
 
     @classmethod
-    def new_game(cls) -> "GameState":
+    def new_game(cls) -> GameState:
         board = [0] * 24
         board[0] = -2
         board[5] = 5
@@ -71,7 +71,7 @@ class GameState:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "GameState":
+    def from_dict(cls, data: dict) -> GameState:
         return cls(
             board=list(data["board"]),
             bar=list(data["bar"]),
@@ -79,7 +79,7 @@ class GameState:
             turn=data["turn"],
         )
 
-    def copy(self) -> "GameState":
+    def copy(self) -> GameState:
         return GameState(
             board=list(self.board), bar=list(self.bar), off=list(self.off), turn=self.turn
         )

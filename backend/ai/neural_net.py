@@ -88,7 +88,7 @@ class NeuralNet:
         os.replace(tmp, path)
 
     @classmethod
-    def load(cls, path: str | Path) -> "NeuralNet":
+    def load(cls, path: str | Path) -> NeuralNet:
         data = np.load(path)
         net = cls.__new__(cls)
         net.W1 = data["W1"]

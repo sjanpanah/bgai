@@ -2,7 +2,7 @@
 a single turn, plus a couple of known real-game positions."""
 
 from engine.moves import apply_turn, legal_turn_sequences
-from engine.state import BAR, OFF, PLAYER_0, GameState, Move, PLAYER_1
+from engine.state import BAR, OFF, PLAYER_0, PLAYER_1, GameState, Move
 
 
 def _empty_state(turn=PLAYER_0):

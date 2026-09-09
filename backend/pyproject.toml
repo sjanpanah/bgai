@@ -6,13 +6,19 @@ requires-python = ">=3.11"
 dependencies = ["fastapi>=0.110", "uvicorn[standard]>=0.29", "pydantic>=2.0", "numpy>=1.26"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff>=0.6", "httpx>=0.27"]
+dev = ["pytest>=8.0", "ruff==0.16.6", "httpx>=0.27"]
 # oracle for differential-testing move generation (see tests/test_differential_gym_backgammon.py);
 # pyglet is only needed transitively so gym_backgammon's package __init__ chain imports cleanly
 differential = ["gym-backgammon", "pyglet"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
+# PIE808 rewrites range(0, 6) -> range(6). In engine/rules.py the explicit 0 start
+# is deliberate: it keeps home/outside ranges visually parallel with their siblings
+# (range(6, 24) vs range(0, 18)), which reads better than the mixed-arity form.
+ignore = ["PIE808"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

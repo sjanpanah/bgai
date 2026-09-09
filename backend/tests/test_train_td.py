@@ -5,8 +5,8 @@ from ai.encoding import encode_canonical
 from ai.neural_engine import NeuralEngine
 from ai.neural_net import NeuralNet
 from ai.train_td import (
-    TrainConfig,
     Traces,
+    TrainConfig,
     _near_loss_position,
     _near_win_position,
     alpha_for_game,
@@ -181,7 +181,7 @@ def test_keyboard_interrupt_saves_and_exits_cleanly(tmp_path, monkeypatch, capsy
     """Ctrl+C must be a supported stop, not a crash: the net is saved with
     every game up to the interrupt, and the caller gets the trained net back
     rather than a propagating KeyboardInterrupt."""
-    import ai.train_td as train_td
+    from ai import train_td
 
     real_self_play = train_td.self_play_game
     calls = {"n": 0}

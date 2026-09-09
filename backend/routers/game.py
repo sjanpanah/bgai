@@ -18,10 +18,12 @@ from ai.registry import DEFAULT_ENGINE_ID, UnknownEngineError, get_engine
 from engine.moves import (
     apply_move,
     apply_turn,
-    combined_moves as compute_combined_moves,
     legal_next_moves,
     legal_single_die_moves,
     legal_turn_sequences,
+)
+from engine.moves import (
+    combined_moves as compute_combined_moves,
 )
 from engine.rules import has_won, win_multiplier
 from engine.state import Dice, GameState, Move

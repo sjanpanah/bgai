@@ -20,8 +20,8 @@ from __future__ import annotations
 
 import collections
 import itertools
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 from ai.base import Engine
 from ai.expectiminimax import ExpectiminimaxEngine

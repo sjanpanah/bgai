@@ -1,6 +1,6 @@
-import pytest
 from collections import OrderedDict
 
+import pytest
 from fastapi.testclient import TestClient
 
 from engine.state import GameState

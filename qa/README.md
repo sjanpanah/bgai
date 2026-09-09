@@ -4,7 +4,11 @@ Long-form quality passes on the app, run by an unattended AI agent and kept as a
 
 - **[`prompt.md`](prompt.md)** — the harness: how a pass is run, the verbatim directive the
   agent is given, and notes on why it's shaped that way.
-- **[`report.md`](report.md)** — the findings from the pass run on 2026-09-08.
+- **[`report.md`](report.md)** — the findings from the pass run on 2026-09-08. Follow-up notes added
+  by later sessions are marked **↩ Follow-up** and quoted; everything else is the original, unedited.
+  The status tracker for the eight priority items sits under its "Fix these first" heading.
+- **[`drive_games.py`](drive_games.py)** — plays whole games through the real API with random-legal
+  moves and reports HTTP failures. How the pass found its blocker, and how the fix was verified.
 
 The idea is simple: a report-only agent session, unsupervised for several hours, walking the whole
 app the way a person would — playing real games in a browser, resizing to a phone, checking

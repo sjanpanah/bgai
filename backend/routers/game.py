@@ -9,11 +9,12 @@ after each single-die move comes in via POST /move, until the dice run out.
 from __future__ import annotations
 
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass
 
 from fastapi import APIRouter, HTTPException
 
-from ai.registry import DEFAULT_ENGINE_ID, get_engine
+from ai.registry import DEFAULT_ENGINE_ID, UnknownEngineError, get_engine
 from engine.moves import (
     apply_move,
     apply_turn,
@@ -44,13 +45,30 @@ class GameSession:
     remaining_dice: list[int] | None = None
 
 
-GAMES: dict[str, GameSession] = {}
+# Games live in memory only, and nothing else evicts them: every page load, every
+# New game click and every abandoned mid-game reload orphans one forever. Left
+# uncapped, ~700 `POST /game/new` per second is achievable from a single laptop
+# and a 512MB instance is exhausted in minutes. An LRU cap bounds that outright;
+# the oldest game is evicted, which for an abandoned session is exactly right and
+# for a live one degrades to "your game expired", the same as a server restart.
+MAX_GAMES = 10_000
+
+GAMES: OrderedDict[str, GameSession] = OrderedDict()
+
+
+def _store_session(game_id: str, session: GameSession) -> None:
+    GAMES[game_id] = session
+    while len(GAMES) > MAX_GAMES:
+        GAMES.popitem(last=False)
 
 
 def _get_session(game_id: str) -> GameSession:
     session = GAMES.get(game_id)
     if session is None:
         raise HTTPException(status_code=404, detail="no such game")
+    # Touch on read so eviction is by last use, not by creation: a long game
+    # must not be evicted ahead of an abandoned one started after it.
+    GAMES.move_to_end(game_id)
     return session
 
 
@@ -78,7 +96,7 @@ def _game_over(state: GameState, player: int) -> GameOverModel | None:
 def new_game() -> NewGameResponse:
     game_id = str(uuid.uuid4())
     state = GameState.new_game()
-    GAMES[game_id] = GameSession(state=state)
+    _store_session(game_id, GameSession(state=state))
     return NewGameResponse(game_id=game_id, state=state.to_dict())
 
 
@@ -177,7 +195,14 @@ def ai_move(game_id: str, engine: str = DEFAULT_ENGINE_ID) -> AiMoveResponse:
         session.state.turn = 1 - player
         return AiMoveResponse(move=[], dice=dice, state=session.state.to_dict(), game_over=None)
 
-    chosen = get_engine(engine).choose_move(session.state, dice, sequences)
+    try:
+        ai_engine = get_engine(engine)
+    except UnknownEngineError as unknown:
+        raise HTTPException(
+            status_code=422,
+            detail=f"unknown engine '{unknown.engine_id}'; valid ids: {unknown.valid_ids}",
+        ) from None
+    chosen = ai_engine.choose_move(session.state, dice, sequences)
     session.state = apply_turn(session.state, player, chosen)
 
     game_over = _game_over(session.state, player)

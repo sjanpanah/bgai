@@ -1,3 +1,6 @@
+import pytest
+from collections import OrderedDict
+
 from fastapi.testclient import TestClient
 
 from engine.state import GameState
@@ -103,3 +106,82 @@ def test_playing_out_a_full_roll_advances_turn():
     # Turn should have passed to player 1 (unless the last move ended the game).
     assert resp.json()["state"]["turn"] in (0, 1)
     assert client.post(f"/game/{game_id}/roll").status_code == 200
+
+
+def _valid_state():
+    return {"board": [0] * 24, "bar": [0, 0], "off": [0, 0], "turn": 0}
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("board", [1, 2, 3]),
+        ("board", []),
+        ("board", [0] * 50),
+        ("bar", []),
+        ("bar", [0, 0, 0]),
+        ("off", [0]),
+        ("turn", 5),
+        ("turn", -1),
+    ],
+)
+def test_engine_move_rejects_structurally_invalid_state(field, value):
+    """Each of these previously reached the rules engine and failed as an
+    IndexError deep inside it -- a 500 on user input. The board cases also
+    capped an unbounded CPU cost: a 50,000-element board burned 56 seconds."""
+    state = _valid_state()
+    state[field] = value
+    res = client.post(
+        "/engine/move",
+        json={"state": state, "dice": [3, 1], "engine": "random"},
+    )
+    assert res.status_code == 422
+
+
+@pytest.mark.parametrize("dice", [[0, 0], [-3, -3], [7, 1], [999999, 999999]])
+def test_engine_move_rejects_impossible_dice(dice):
+    """Unbounded dice returned 200 with nonsense: [0,0] gave moves from a point
+    to itself and [-3,-3] gave moves that ran backwards."""
+    res = client.post(
+        "/engine/move",
+        json={"state": _valid_state(), "dice": dice, "engine": "random"},
+    )
+    assert res.status_code == 422
+
+
+@pytest.mark.parametrize("engine_id", ["doesnotexist", ""])
+def test_unknown_engine_is_a_422_naming_the_valid_ids(engine_id):
+    """`get_engine` was a bare `_ENGINES[engine_id]`, so a user-supplied string
+    raised KeyError -> 500, on both the stateless endpoint and the `?engine=`
+    query parameter the frontend itself sends."""
+    res = client.post(
+        "/engine/move",
+        json={"state": _valid_state(), "dice": [3, 1], "engine": engine_id},
+    )
+    assert res.status_code == 422
+    assert "random" in res.json()["detail"]
+
+    game_id = client.post("/game/new").json()["game_id"]
+    res = client.post(f"/game/{game_id}/ai?engine={engine_id}")
+    assert res.status_code == 422
+
+
+def test_game_store_is_capped_and_evicts_least_recently_used():
+    from routers import game as game_router
+
+    original, original_max = game_router.GAMES, game_router.MAX_GAMES
+    game_router.GAMES = OrderedDict()
+    game_router.MAX_GAMES = 3
+    try:
+        ids = [client.post("/game/new").json()["game_id"] for _ in range(3)]
+        # Touch the oldest so it is no longer the eviction candidate.
+        assert client.post(f"/game/{ids[0]}/roll").status_code == 200
+        newest = client.post("/game/new").json()["game_id"]
+
+        assert len(game_router.GAMES) == 3
+        assert ids[0] in game_router.GAMES  # kept: recently used
+        assert ids[1] not in game_router.GAMES  # evicted: least recently used
+        assert newest in game_router.GAMES
+        assert client.post(f"/game/{ids[1]}/roll").status_code == 404
+    finally:
+        game_router.GAMES, game_router.MAX_GAMES = original, original_max

@@ -46,8 +46,22 @@ _ENGINES: dict[str, EngineEntry] = {
 }
 
 
+class UnknownEngineError(KeyError):
+    """Raised for an engine id that isn't registered. Typed rather than a bare
+    KeyError because `engine_id` is user input on both `POST /engine/move` and
+    the `?engine=` query parameter, so callers need to turn it into a 4xx."""
+
+    def __init__(self, engine_id: str) -> None:
+        self.engine_id = engine_id
+        self.valid_ids = list(_ENGINES)
+        super().__init__(engine_id)
+
+
 def get_engine(engine_id: str) -> Engine:
-    return _ENGINES[engine_id].engine
+    try:
+        return _ENGINES[engine_id].engine
+    except KeyError:
+        raise UnknownEngineError(engine_id) from None
 
 
 def list_engines() -> list[dict]:

@@ -19,6 +19,15 @@
   --color-danger: #f0b1a3;
   --color-danger-surface: #5a2a20;
   --color-danger-line: #bd7160;
+
+  /* Winning gets its own warm gold rather than reusing danger's red: losing an
+     ordinary game is not an error, and red is already what this app uses to say
+     something went wrong. A loss keeps the neutral ink/line, so the two results
+     differ by warmth rather than by good/bad. Ratios against their own surface:
+     win on win-surface 8.2:1, win-line 4.4:1 — both clear AA. */
+  --color-win: #f2d9a0;
+  --color-win-surface: #4a3717;
+  --color-win-line: #c39a4e;
 }
 
 :root {

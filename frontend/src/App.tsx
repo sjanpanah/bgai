@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Board } from "./components/Board";
 import { Dice } from "./components/Dice";
 import { EngineSelect } from "./components/EngineSelect";
+import { GameResult } from "./components/GameResult";
 import { MoveHistory } from "./components/MoveHistory";
 import { useAnimatedBoard } from "./hooks/useAnimatedBoard";
 import { useEngines } from "./hooks/useEngines";
@@ -54,6 +55,11 @@ function App() {
     backendVersion.commit !== FRONTEND_COMMIT;
   const [selectedEngine, setSelectedEngine] = useState(readStoredEngine);
   const [selectedSource, setSelectedSource] = useState<number | null>(null);
+  // Lets the player uncover the final position to read or screenshot it. Keyed
+  // by game id so a new game never inherits the previous game's dismissal.
+  const [resultDismissedFor, setResultDismissedFor] = useState<string | null>(
+    null,
+  );
 
   // The engine a fresh game would be no different from: whatever was selected
   // when the current game started. Tracked via a ref so the gameId effect below
@@ -261,19 +267,29 @@ function App() {
         </div>
       </div>
 
-      <Board
-        state={displayState ?? state}
-        selectableSources={selectableSources}
-        selectedSource={selectedSource}
-        selectableDestinations={selectableDestinations}
-        combinedDestinations={combinedDestinations}
-        previewDirect={previewDirect}
-        previewCombined={previewCombined}
-        onPointClick={handlePointClick}
-        onSelectSource={setSelectedSource}
-        onMove={handleDragMove}
-        flight={flight}
-      />
+      <div className="relative">
+        <Board
+          state={displayState ?? state}
+          selectableSources={selectableSources}
+          selectedSource={selectedSource}
+          selectableDestinations={selectableDestinations}
+          combinedDestinations={combinedDestinations}
+          previewDirect={previewDirect}
+          previewCombined={previewCombined}
+          onPointClick={handlePointClick}
+          onSelectSource={setSelectedSource}
+          onMove={handleDragMove}
+          flight={flight}
+        />
+        {gameOver && resultDismissedFor !== gameId && (
+          <GameResult
+            multiplier={gameOver.multiplier}
+            humanWon={gameOver.winner === human}
+            onNewGame={newGame}
+            onDismiss={() => setResultDismissedFor(gameId)}
+          />
+        )}
+      </div>
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -289,7 +305,9 @@ function App() {
         </div>
         <p>
           {gameOver
-            ? `Game over — player ${gameOver.winner === human ? "you" : "AI"} wins (x${gameOver.multiplier})`
+            ? gameOver.winner === human
+              ? "You win"
+              : "AI wins"
             : humansTurn
               ? isRolling
                 ? "Your move"

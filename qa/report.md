@@ -32,8 +32,8 @@ Ordered by damage ÷ effort, not by severity alone.
 > | # | item | status |
 > |---|---|---|
 > | 1 | bear-off overage 500 | **done** — `b84b8b0`, with the session-wedge reorder and 3 tests; 100 API-driven games across 4 seeds now finish clean, vs 14/25 and 19/25 dying before |
-> | 2 | Pydantic constraints on `GameStateModel` | open |
-> | 3 | cap the game store | open |
+> | 2 | Pydantic constraints on `GameStateModel` | **done** — `788f5c1`, with the typed `get_engine` error; 15 new assertions, all checked to fail against the old code |
+> | 3 | cap the game store | **done** — `788f5c1`, LRU rather than plain FIFO |
 > | 4 | the game-over moment | open |
 > | 5 | animation cleanup invariant | open |
 > | 6 | two accessibility attributes | open |
@@ -116,6 +116,20 @@ CPU** on one unauthenticated request against 12ms for a real position. `Len(24, 
 `get_engine` raise something typed — `engine=doesnotexist` is a bare `KeyError` and a 500, on the
 `?engine=` parameter the frontend itself uses.
 
+> **↩ Follow-up — done in `788f5c1`, along with item 3.** `Board = Annotated[list[int], Len(24, 24)]`,
+> `PerPlayer` for `bar`/`off`, `turn: Literal[0, 1]` and `DieValue = Annotated[int, Field(ge=1, le=6)]`
+> applied to every `dice` field. `get_engine` now raises `UnknownEngineError` carrying the valid ids,
+> which both routers turn into a 422 that names them; `/engine/move` resolves the engine *before*
+> building the state or generating sequences, so a bad id costs nothing.
+>
+> Measured after the change, same probes as F6.2: the 50,000-point board went **55,998ms → 16.9ms**
+> (and that remainder is mostly parsing the 250KB body), and 5,000 points against `expectiminimax`
+> went **52,993ms → 2.2ms**. Both are now 422s.
+>
+> One judgement call: `GameStateModel` is used for responses as well as requests, so these
+> constraints now also assert the server's *own* output. Every real state satisfies them, and a
+> violation would mean the rules engine had produced something impossible — worth a 500, arguably.
+
 ### 3. Cap the game store — F7.2 — **ten lines**
 *Effort: an `OrderedDict` and a constant. Damage: OOM in ~7 minutes of trivial load.*
 
@@ -123,6 +137,13 @@ CPU** on one unauthenticated request against 12ms for a real position. `Len(24, 
 laptop; at ~1,749 bytes each that is 1.2 MB/s of permanently retained memory, which exhausts a 512MB
 free-tier instance in about seven minutes. It also leaks under honest traffic — every page load, every
 New game click, every mid-game reload orphans a session forever.
+
+> **↩ Follow-up — done in `788f5c1`.** `GAMES` is an `OrderedDict` with `MAX_GAMES = 10_000`, evicting
+> from the front on insert. Made it **LRU rather than FIFO**: `_get_session` calls `move_to_end`, so a
+> long game can't be evicted ahead of an abandoned one started after it — with plain FIFO a slow
+> player is exactly who gets thrown out. The report's suggestion 2 (an idle sweep on a `last_touched`
+> timestamp) is still open and is the better fix for the honest-traffic leak; this closes the
+> exhaustion vector.
 
 ### 4. Fix the game-over moment — F1.1 / F1.2 / F1.3 — **the highest-visibility fix in the report**
 *Effort: one component. Damage: it is the last thing every player sees.*

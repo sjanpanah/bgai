@@ -10,7 +10,11 @@ export function countAt(state: GameState, idx: number, player: number): number {
 
 /** Lifts one of `player`'s checkers off `idx`, leaving the rest of the board untouched.
  * Used to render the resting board mid-flight, with the moving checker "picked up". */
-export function liftOne(state: GameState, idx: number, player: number): GameState {
+export function liftOne(
+  state: GameState,
+  idx: number,
+  player: number,
+): GameState {
   if (idx === BAR) {
     const bar: [number, number] = [...state.bar];
     bar[player] -= 1;
@@ -53,4 +57,12 @@ export function applyVisualMove(
   }
 
   return { ...state, board, bar, off };
+}
+
+/** Checkers accounted for by a position: 30 in a well-formed game. Used as a
+ *  rest-state invariant on the animated display, which deliberately drops to 29
+ *  mid-hop while one checker is in flight. */
+export function checkerTotal(state: GameState): number {
+  const onBoard = state.board.reduce((sum, count) => sum + Math.abs(count), 0);
+  return onBoard + state.bar[0] + state.bar[1] + state.off[0] + state.off[1];
 }

@@ -77,6 +77,7 @@ function App() {
     state,
     turnAnimation,
     human,
+    gameId,
   );
 
   useEffect(() => {

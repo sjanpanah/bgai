@@ -35,7 +35,7 @@ Ordered by damage ÷ effort, not by severity alone.
 > | 2 | Pydantic constraints on `GameStateModel` | **done** — `788f5c1`, with the typed `get_engine` error; 15 new assertions, all checked to fail against the old code |
 > | 3 | cap the game store | **done** — `788f5c1`, LRU rather than plain FIFO |
 > | 4 | the game-over moment | **done** — overlay panel scoped to the board, dismissible |
-> | 5 | animation cleanup invariant | open |
+> | 5 | animation cleanup invariant | **done** — `f7df08a`; reproduced the real wedge and verified the fix against it |
 > | 6 | two accessibility attributes | **done** — `f9282c5` |
 > | 7 | the first responsive breakpoint | open |
 > | 8 | everything else | open — and note this one is a compressed list of a dozen-odd things that needs unpacking into real items when reached |
@@ -193,6 +193,51 @@ null, no error shown, server state healthy. Time-box the hop, restore on every e
 that the display always accounts for 30 checkers. *Honest caveat: the trigger in my environment was
 the hidden browser pane, where `requestAnimationFrame` never fires. The fragility is real; the
 frequency on a visible tab is not something I measured.*
+
+
+> **↩ Follow-up — done in `f7df08a`** (F2.1/F5.2). Four changes:
+>
+> - **The hop is time-boxed.** `animateHop` races its rAF promise against a `setTimeout` at
+>   `speedMs + 2000ms`; whichever wins tears down the loser (`cancelAnimationFrame` + `clearTimeout`,
+>   one-shot `settled` flag), so a timed-out hop leaves no rAF chain writing into a turn that has
+>   moved on. setTimeout is throttled in a hidden tab but *does* fire, so it is a real escape hatch
+>   rather than a second copy of the bug.
+> - **`newGame()` now resets the hook.** It takes `gameId` as a reset key: queue cleared, refs
+>   cleared, display snapped to the authoritative state. A generation counter makes this safe — a
+>   queue loop captures the generation it started in and stops writing once stale, so an abandoned
+>   animation can't overwrite the game it was abandoned for.
+> - **The 30-checker invariant** is checked when the queue drains, not on every `setDisplay`: the
+>   display is *deliberately* 29 mid-hop with one checker in flight, so it only holds at rest. A
+>   mismatch logs and snaps to server state.
+> - **A hidden tab snaps instead of animating**, which the finding also suggested. This turned out to
+>   matter more than expected — see below.
+>
+> **The fix was verified against the real failure, not a simulation.** The browser pane runs hidden
+> and rAF genuinely never fires there (confirmed: `rafFiresWithin1200ms: false`), so the wedge
+> reproduces exactly. Then `requestAnimationFrame` was stubbed to a no-op to remove all doubt about
+> what was resolving the hop:
+>
+> | check, with rAF stubbed dead | result |
+> |---|---|
+> | board mid-hop | 0 highlights — the wedge, as described |
+> | board after the timeout | 11 highlights, "Your move", playable |
+> | New game while wedged | recovers: "Your turn — roll the dice", 30 checkers rendered |
+> | play on after New game | 12 highlights, 30 checkers |
+>
+> That third row is the one the finding said was unconditional and worth fixing on its own — New game
+> provably did not recover a wedged board before.
+>
+> **Two things worth recording that the finding didn't anticipate.** First, time-boxing alone left a
+> hidden tab crawling at one hop per ~2.4s, which is why the hidden-tab snap went in too: a real move
+> then takes 510ms instead of 2350ms, and a backgrounded game plays normally rather than merely
+> failing to wedge. Ten driven turns held 30 checkers throughout with a clean console. Second, editing
+> this hook live produced a React "rendered more hooks than during the previous render" error in the
+> console — an HMR artifact of adding a `useRef`/`useEffect` to a mounted component, not a real
+> regression. A fresh tab is clean. It looks exactly like a serious bug and is worth knowing about
+> before chasing it.
+>
+> Not covered: there is no frontend test runner in the repo, so none of this is pinned by a test the
+> way the backend fixes are. That gap is worth its own item.
 
 ### 6. Two attributes for accessibility — F4.4 — **highest value per character in the report**
 `role="status"` on the status line and `role="alert"` on the error banner. The frontend contains
